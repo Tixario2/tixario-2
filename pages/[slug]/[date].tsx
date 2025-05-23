@@ -32,8 +32,8 @@ interface PageProps {
   billets: Billet[]
   evenementName: string
   locationLabel: string
-  pngSrc: string | null
-  svgSrc: string | null
+  pngSrc: string 
+  svgSrc: string 
   stockPerZone: Record<string, number>
   logoArtiste: string
   events: EventItem[]
@@ -135,6 +135,7 @@ export default function EventDatePage({
         setFiltreCategorie={setFiltreCategorie}
         search={search}
         setSearch={setSearch}
+        events={events}
       />
 
       {/* Layout 60/40 */}
@@ -157,15 +158,17 @@ export default function EventDatePage({
           {confirmationMessage && (
             <div className="sticky top-0 z-10 bg-black py-2">
               <div
-                className={`${confirmationMessage ===
+                className={`text-center font-medium ${confirmationMessage ===
                   'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
                   ? 'text-white'
-                  : 'text-green-400'} text-center font-medium`
+                  : 'text-green-400'
+                  }`}
               >
                 {confirmationMessage}
               </div>
             </div>
           )}
+
 
           {selectedZone && (
             <div className="mb-4 px-2">
@@ -219,20 +222,65 @@ export default function EventDatePage({
                         ))}
                       </select>
 
+                      {/* Ajouter au panier */}
                       <button
                         className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
-                        onClick={() => addToCart(billet, selectedQuantities[billet.id_billet] || 1)}
+                        onClick={e => {
+                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                            .querySelector('select')
+                          const qty = selectEl
+                            ? Number((selectEl as HTMLSelectElement).value)
+                            : 1
+                          const existing = cart.find(i => i.id_billet === billet.id_billet)
+                          const already = existing ? existing.quantite : 0
+
+                          // 1) Ne pas laisser exactement 1 place seule
+                          const remainingAfter = billet.quantite - (already + qty)
+                          if (remainingAfter === 1) {
+                            setConfirmationMessage(
+                              `Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.`
+                            )
+                            setTimeout(() => setConfirmationMessage(''), 5500)
+                            return
+                          }
+
+                          // 2) Vérifier qu’on ne dépasse pas le stock
+                          if (already + qty > billet.quantite) {
+                            const maxAdd = billet.quantite - already
+                            setConfirmationMessage(
+                              `❌ Impossible d'ajouter ${qty} billet${qty > 1 ? 's' : ''} : ` +
+                              `Vous avez déjà ${already} billet${already > 1 ? 's' : ''} ` +
+                              `et il ne reste que ${maxAdd} place${maxAdd > 1 ? 's' : ''}.`
+                            )
+                            setTimeout(() => setConfirmationMessage(''), 4000)
+                            return
+                          }
+
+                          // 3) Ajout au panier
+                          addToCart(billet, qty)
+                          setConfirmationMessage(
+                            `✅ ${qty} billet${qty > 1 ? 's' : ''} ajouté${qty > 1 ? 's' : ''} au panier`
+                          )
+                          setTimeout(() => setConfirmationMessage(''), 4000)
+                        }}
                       >
                         Ajouter au panier
                       </button>
 
+                      {/* Acheter maintenant */}
                       <button
                         className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
-                        onClick={() => {
+                        onClick={e => {
+                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                            .querySelector('select')
+                          const qty = selectEl
+                            ? Number((selectEl as HTMLSelectElement).value)
+                            : 1
+
                           fetch('/api/checkout', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ cartItems: [{ ...billet, quantite: selectedQuantities[billet.id_billet] || 1 }] }),
+                            body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
                           })
                             .then(r => r.json())
                             .then(data => {
@@ -258,39 +306,37 @@ export default function EventDatePage({
   )
 }
 
-// --- static paths ---
+// --- static paths & props (inchangés sauf ajout events) ---
 export const getStaticPaths: GetStaticPaths = async () => {
-  const { data: rawData, error } = await supabase
-    .from('billets')
+  const { data } = await supabase
+    .from<Billet>('billets')
     .select('slug')
     .eq('disponible', true)
 
-  if (error || !rawData) {
-    return { paths: [], fallback: false }
-  }
-
   const uniq = new Set<string>()
-  rawData.forEach(b => {
-    const [slugPart, ...rest] = b.slug.split('-')
-    const datePart = rest.join('-')
-    uniq.add(`${slugPart}___${datePart}`)
-  })
+    ; (data || []).forEach(b => {
+      const parts = b.slug.split('-')
+      const slug = parts[0]
+      const date = parts.slice(-3).join('-')
+      uniq.add(`${slug}___${date}`)
+    })
 
-  const paths = Array.from(uniq).map(str => {
-    const [slugPart, datePart] = str.split('___')
-    return { params: { slug: slugPart, date: datePart } }
-  })
-
-  return { paths, fallback: 'blocking' }
+  return {
+    paths: Array.from(uniq).map(str => {
+      const [slug, date] = str.split('___')
+      return { params: { slug, date } }
+    }),
+    fallback: 'blocking',
+  }
 }
 
-// --- static props ---
 export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
   const slug = params!.slug as string
   const dateParam = params!.date as string
 
+  // on récupère les billets pour la date
   const { data: billets, error } = await supabase
-    .from<'billets', Billet>('billets')
+    .from<Billet>('billets')
     .select('*, logo_artiste')
     .ilike('slug', `${slug}-%`)
     .eq('date', dateParam)
@@ -300,24 +346,26 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
     return { notFound: true }
   }
 
+  // on calcule les stocks par zone
   const stockPerZone = billets.reduce((acc, b) => {
     acc[b.zone_id] = (acc[b.zone_id] || 0) + b.quantite
     return acc
   }, {} as Record<string, number>)
 
+  // on construit la liste unique des events pour la search-dropdown
   const { data: all, error: err2 } = await supabase
-    .from('billets')
+    .from<Billet>('billets')
     .select('evenement, slug, logo_artiste')
     .eq('disponible', true)
 
   const eventsMap = new Map<string, EventItem>()
-  all?.forEach(r => {
-    const name = r.evenement
-    const slugEvent = (r.slug as string).split('-')[0]
-    if (!eventsMap.has(name)) {
-      eventsMap.set(name, { nom: name, slugEvent, logo: r.logo_artiste || '' })
-    }
-  })
+    ; (all || []).forEach(r => {
+      const name = r.evenement
+      const slugEvent = (r.slug as string).split('-')[0]
+      if (!eventsMap.has(name)) {
+        eventsMap.set(name, { nom: name, slugEvent, logo: r.logo_artiste || '' })
+      }
+    })
   const events = Array.from(eventsMap.values())
 
   const first = billets[0]
@@ -326,8 +374,12 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
       billets,
       evenementName: first.evenement,
       locationLabel: `${first.ville} – ${first.pays}`,
-      pngSrc: first.map_png ? `/images/maps/${first.map_png}` : null,
-      svgSrc: first.map_svg ? `/images/maps/${first.map_svg}` : null,
+      pngSrc: first.map_png
+        ? `/images/maps/${first.map_png}`
+        : null,
+      svgSrc: first.map_svg
+        ? `/images/maps/${first.map_svg}`
+        : null,
       stockPerZone,
       logoArtiste: first.logo_artiste || '',
       events,
