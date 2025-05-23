@@ -224,4 +224,5 @@ export default function EventHeader({
         </select>
       </div>
     </div>
+  )
 }
