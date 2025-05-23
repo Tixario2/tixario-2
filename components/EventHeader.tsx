@@ -67,9 +67,10 @@ export default function EventHeader({
   useEffect(() => {
     const fetchMenu = async () => {
       const { data, error } = await supabase
-        .from<BilletRecord>('billets')
-        .select('evenement, slug, date, logo_artiste')
+        .from('billets')
+        .select<BilletRecord>('evenement, slug, date, logo_artiste')
         .order('date', { ascending: true })
+
       if (!error && data) {
         const map = new Map<string, EventItem>()
         data.forEach(r => {
@@ -225,3 +226,4 @@ export default function EventHeader({
     </div>
   )
 }
+
