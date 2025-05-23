@@ -12,16 +12,14 @@ interface EventItem {
   nom: string
   slugEvent: string
   logo?: string
-  // dates: string[]  // <-- COMMENTE ou SUPPRIME cette ligne
+  dates: string[]             // remis en place
 }
-
 
 interface EventHeaderProps {
   logoUrl: string
   evenementName: string
-  date: string          // ISO "YYYY-MM-DD"
+  date: string               // ISO "YYYY-MM-DD"
   locationLabel: string
-  events: EventItem[] // <-- ici, c'est la ligne qui nous intéresse
 
   // filtres billet
   filtreQuantite: string
@@ -34,9 +32,6 @@ interface EventHeaderProps {
   // mini-search événements
   search: string
   setSearch: (s: string) => void
-
-  // <--- ADD THIS LINE:
-  events: EventItem[]
 }
 
 interface BilletRecord {
@@ -59,7 +54,6 @@ export default function EventHeader({
   setFiltreCategorie,
   search,
   setSearch,
-  events, // <--- ADD THIS
 }: EventHeaderProps) {
   const router = useRouter()
   const { cart = [] } = useCart() as { cart: Array<{ quantite: number }> }
@@ -142,7 +136,6 @@ export default function EventHeader({
 
         {/* mini-search + panier */}
         <div className="flex items-center gap-4">
-          {/* Panier */}
           <div
             className="relative cursor-pointer"
             onClick={() => router.push('/panier')}
@@ -155,7 +148,6 @@ export default function EventHeader({
             )}
           </div>
 
-          {/* mini-search */}
           <div ref={containerRef} className="relative w-64">
             <input
               type="text"
@@ -230,5 +222,5 @@ export default function EventHeader({
         </select>
       </div>
     </div>
-  )
-}
+)
+
