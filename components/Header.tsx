@@ -1,6 +1,7 @@
 // components/Header.tsx
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/supabaseClient'
 
 type EventMenuItem = {
@@ -10,16 +11,22 @@ type EventMenuItem = {
   logo_artiste?: string
 }
 
+type BilletRecord = {
+  evenement: string
+  slug: string
+  date: string
+  logo_artiste?: string | null
+}
+
 export default function Header() {
   const [menuItems, setMenuItems] = useState<EventMenuItem[]>([])
   const [isOpen, setIsOpen] = useState(false)
-  // Ref pour stocker le timer de fermeture
   const closeTimer = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const fetchMenu = async () => {
       const { data, error } = await supabase
-        .from('billets')
+        .from<BilletRecord>('billets')
         .select('evenement, slug, date, logo_artiste')
       if (error || !data) return
 
@@ -28,13 +35,13 @@ export default function Header() {
         const name = r.evenement
         const [slugEvent] = r.slug.split('-')
         const dateIso = r.date
-        const logo = (r as any).logo_artiste
+        const logo = r.logo_artiste ?? undefined
         if (!map.has(name)) {
           map.set(name, {
             nom: name,
             slugEvent,
             dates: [],
-            logo_artiste: logo || undefined,
+            logo_artiste: logo,
           })
         }
         const ev = map.get(name)!
@@ -55,7 +62,6 @@ export default function Header() {
     fetchMenu()
   }, [])
 
-  // Ouvre immédiatement et annule toute fermeture programmée
   const handleMouseEnter = () => {
     if (closeTimer.current) {
       clearTimeout(closeTimer.current)
@@ -64,7 +70,6 @@ export default function Header() {
     setIsOpen(true)
   }
 
-  // Programme la fermeture dans 1.5s
   const handleMouseLeave = () => {
     if (closeTimer.current) clearTimeout(closeTimer.current)
     closeTimer.current = setTimeout(() => {
@@ -83,7 +88,6 @@ export default function Header() {
         <nav className="flex gap-6 text-sm items-center">
           <Link href="/">Accueil</Link>
 
-          {/* Wrapper englobant trigger + dropdown */}
           <div
             className="relative"
             onMouseEnter={handleMouseEnter}
@@ -109,11 +113,15 @@ export default function Header() {
                     className="flex items-center gap-2 px-4 py-2 hover:bg-gray-800 whitespace-nowrap"
                   >
                     {ev.logo_artiste && (
-                      <img
-                        src={`/images/artistes/${ev.logo_artiste}`}
-                        alt={`${ev.nom} logo`}
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
+                      <div className="relative w-6 h-6">
+                        <Image
+                          src={`/images/artistes/${ev.logo_artiste}`}
+                          alt={`${ev.nom} logo`}
+                          layout="fill"
+                          objectFit="cover"
+                          className="rounded-full"
+                        />
+                      </div>
                     )}
                     <span>{ev.nom}</span>
                   </Link>
@@ -130,6 +138,7 @@ export default function Header() {
     </header>
   )
 }
+
 
 
 

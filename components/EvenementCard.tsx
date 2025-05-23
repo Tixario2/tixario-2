@@ -1,5 +1,6 @@
 // components/EvenementCard.tsx
 import Link from "next/link";
+import Image from "next/image";
 
 type Props = {
   artiste: string;
@@ -31,11 +32,14 @@ export default function EvenementCard({
   return (
     <Link href={href}>
       <div className="rounded-xl overflow-hidden bg-neutral-900 border border-neutral-700 hover:border-white transition-shadow duration-300 shadow-md shadow-neutral-800/40 hover:shadow-lg cursor-pointer">
-        <img
-          src={imageUrl}
-          alt={artiste}
-          className="w-full h-48 object-cover"
-        />
+        <div className="relative w-full h-48">
+          <Image
+            src={imageUrl}
+            alt={artiste}
+            layout="fill"
+            objectFit="cover"
+          />
+        </div>
         <div className="p-4">
           <h3 className="text-lg font-semibold text-white truncate">
             {artiste}
@@ -57,5 +61,3 @@ export default function EvenementCard({
     </Link>
   );
 }
-
-

@@ -1,5 +1,6 @@
 // components/PanZoomMap.tsx
 import { useLayoutEffect, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import SeatingMap from './SeatingMap'
 
 type Props = {
@@ -104,7 +105,6 @@ export default function PanZoomMap({
         </button>
       </div>
 
-
       {/* Content container: image + SVG overlay */}
       <div
         ref={contentRef}
@@ -116,11 +116,16 @@ export default function PanZoomMap({
         }}
       >
         {/* Static PNG background */}
-        <img
-          src={pngSrc}
-          alt="Plan statique"
-          className="w-full h-full object-contain object-center "
-        />
+        <div className="relative w-full h-full">
+          <Image
+            src={pngSrc}
+            alt="Plan statique"
+            layout="fill"
+            objectFit="contain"
+            objectPosition="center"
+            className="select-none"
+          />
+        </div>
         {/* SVG overlay with interactive zones */}
         <div className="absolute inset-0">
           <SeatingMap

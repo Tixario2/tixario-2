@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { supabase } from '@/supabaseClient'
 import { useCart } from '@/context/cartContext'
 import { ShoppingCart } from 'lucide-react'
+import Image from 'next/image'
 
 interface EventItem {
   nom: string
@@ -14,7 +15,7 @@ interface EventItem {
   dates: string[]
 }
 
-interface Props {
+interface EventHeaderProps {
   logoUrl: string
   evenementName: string
   date: string          // ISO "YYYY-MM-DD"
@@ -46,7 +47,7 @@ export default function EventHeader({
   setFiltreCategorie,
   search,
   setSearch,
-}: Props) {
+}: EventHeaderProps) {
   const router = useRouter()
   const { cart = [] } = useCart() as { cart: Array<{ quantite: number }> }
   const ticketCount = cart.reduce((sum, item) => sum + (item.quantite || 0), 0)
@@ -107,11 +108,15 @@ export default function EventHeader({
       <div className="flex items-center justify-between mb-6">
         {/* logo + titre */}
         <div className="flex items-center gap-4">
-          <img
-            src={logoUrl}
-            alt={evenementName}
-            className="w-12 h-12 rounded-full object-cover border border-gray-700"
-          />
+          <div className="relative w-12 h-12">
+            <Image
+              src={logoUrl}
+              alt={evenementName}
+              layout="fill"
+              objectFit="cover"
+              className="rounded-full border border-gray-700"
+            />
+          </div>
           <div>
             <h1 className="text-3xl font-bold">{evenementName}</h1>
             <p className="text-gray-300">
@@ -161,10 +166,12 @@ export default function EventHeader({
                         onMouseDown={() => router.push(href)}
                       >
                         {ev.logo && (
-                          <img
+                          <Image
                             src={`/images/artistes/${ev.logo}`}
                             alt={`${ev.nom} logo`}
-                            className="w-6 h-6 rounded-full object-cover"
+                            width={24}
+                            height={24}
+                            className="rounded-full object-cover"
                           />
                         )}
                         <span className="text-white">{ev.nom}</span>
