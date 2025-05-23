@@ -32,6 +32,9 @@ interface EventHeaderProps {
   // mini-search événements
   search: string
   setSearch: (s: string) => void
+
+  // <--- ADD THIS LINE:
+  events: EventItem[]
 }
 
 interface BilletRecord {
