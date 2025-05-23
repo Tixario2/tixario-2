@@ -21,6 +21,7 @@ interface EventHeaderProps {
   evenementName: string
   date: string          // ISO "YYYY-MM-DD"
   locationLabel: string
+  events: EventItem[] // <-- ici, c'est la ligne qui nous intéresse
 
   // filtres billet
   filtreQuantite: string
