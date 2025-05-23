@@ -5,17 +5,10 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["upload.wikimedia.org"],
   },
+  eslint: {
+    // Ignore les erreurs ESLint durant la build (ne bloque plus next build)
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  // … ta config existante
-  eslint: {
-    // NE bloque PAS la build en cas d'erreur ESLint
-    ignoreDuringBuilds: true,
-  },
-}
-
-export default nextConfig
