@@ -66,6 +66,7 @@ export default function EventHeader({
   const [eventsList, setEventsList] = useState<EventItem[]>([])
   useEffect(() => {
     const fetchMenu = async () => {
+      // ← ici on a bien retiré le générique sur from() et on le met sur select()
       const { data, error } = await supabase
         .from('billets')
         .select<BilletRecord>('evenement, slug, date, logo_artiste')
@@ -224,6 +225,6 @@ export default function EventHeader({
         </select>
       </div>
     </div>
-  )
+)
 }
 
