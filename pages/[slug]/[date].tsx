@@ -135,7 +135,6 @@ export default function EventDatePage({
         setFiltreCategorie={setFiltreCategorie}
         search={search}
         setSearch={setSearch}
-        events={events}
       />
 
       {/* Layout 60/40 */}
