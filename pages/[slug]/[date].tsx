@@ -307,10 +307,19 @@ export default function EventDatePage({
 
 // --- static paths & props (inchangés sauf ajout events) ---
 export const getStaticPaths: GetStaticPaths = async () => {
-  const { data } = await supabase
-  .from<'billets', Billet>('billets')
+  const { data: rawData, error } = await supabase
+  .from('billets')
   .select('slug')
   .eq('disponible', true)
+
+if (error || !rawData) {
+  return { paths: [], fallback: false }
+}
+
+// On cast manuellement
+const data = rawData as Array<{ slug: string }>
+const paths = data.map(item => ({ params: { slug, date: item.slug } }))
+
 
   const uniq = new Set<string>()
     ; (data || []).forEach(b => {
