@@ -57,6 +57,7 @@ export default function EventHeader({
   setFiltreCategorie,
   search,
   setSearch,
+  events, // <--- ADD THIS
 }: EventHeaderProps) {
   const router = useRouter()
   const { cart = [] } = useCart() as { cart: Array<{ quantite: number }> }
