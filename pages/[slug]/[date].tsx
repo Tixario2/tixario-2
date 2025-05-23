@@ -308,9 +308,9 @@ export default function EventDatePage({
 // --- static paths & props (inchangés sauf ajout events) ---
 export const getStaticPaths: GetStaticPaths = async () => {
   const { data } = await supabase
-    .from<Billet>('billets')
-    .select('slug')
-    .eq('disponible', true)
+  .from<'billets', Billet>('billets')
+  .select('slug')
+  .eq('disponible', true)
 
   const uniq = new Set<string>()
     ; (data || []).forEach(b => {
