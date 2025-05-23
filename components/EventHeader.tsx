@@ -34,6 +34,13 @@ interface EventHeaderProps {
   setSearch: (s: string) => void
 }
 
+interface BilletRecord {
+  evenement: string
+  slug: string
+  date: string
+  logo_artiste?: string | null
+}
+
 export default function EventHeader({
   logoUrl,
   evenementName,
@@ -60,7 +67,7 @@ export default function EventHeader({
   useEffect(() => {
     const fetchMenu = async () => {
       const { data, error } = await supabase
-        .from('billets')
+        .from<BilletRecord>('billets')
         .select('evenement, slug, date, logo_artiste')
         .order('date', { ascending: true })
       if (!error && data) {
@@ -69,7 +76,7 @@ export default function EventHeader({
           const name = r.evenement
           const parts = r.slug.split('-')
           const slugEvent = parts[0]
-          const logo = (r as any).logo_artiste || undefined
+          const logo = r.logo_artiste ?? undefined
           const dateIso = r.date
           if (!map.has(name)) {
             map.set(name, { nom: name, slugEvent, logo, dates: [] })

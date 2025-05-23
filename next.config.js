@@ -1,11 +1,13 @@
+// next.config.js
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
   images: {
-    domains: ["upload.wikimedia.org"],
+    domains: ['upload.wikimedia.org'],
   },
-  eslint: {
-    // Ignore toutes les erreurs ESLint pendant la build
-    ignoreDuringBuilds: true,
-  },
+  // On retire la désactivation globale d’ESLint pour retrouver les contrôles de lint maintenant que
+  // tout le code est corrigé.
+  // eslint: {
+  //   ignoreDuringBuilds: true,
+  // },
 }

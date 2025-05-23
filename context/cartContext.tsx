@@ -1,14 +1,38 @@
 // context/cartContext.tsx
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
 
-export const CartContext = createContext(null);
+interface CartItem {
+  id_billet: string;
+  quantite: number;
+  [key: string]: any; // autres propriétés de billet si nécessaire
+}
 
-export const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState([]);
+interface CartContextType {
+  cart: CartItem[];
+  addToCart: (billet: CartItem, quantite: number) => void;
+  removeFromCart: (id_billet: string) => void;
+  clearCart: () => void;
+}
+
+const CartContext = createContext<CartContextType | undefined>(undefined);
+
+interface CartProviderProps {
+  children: ReactNode;
+}
+
+export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   // Charger depuis localStorage au premier rendu
   useEffect(() => {
-    const storedCart = localStorage.getItem('cart');
+    const storedCart = typeof window !== 'undefined' ? localStorage.getItem('cart') : null;
     if (storedCart) {
       setCart(JSON.parse(storedCart));
     }
@@ -16,39 +40,37 @@ export const CartProvider = ({ children }) => {
 
   // Sauvegarder dans localStorage dès que le panier change
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-    console.log('📦 Panier enregistré dans localStorage :', cart);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cart', JSON.stringify(cart));
+      console.log('📦 Panier enregistré dans localStorage :', cart);
+    }
   }, [cart]);
 
-  // Ajouter au panier (additionne, mais pas plus que le stock dispo,
-  // et fonctionne immédiatement même en clic rapide)
-  const addToCart = (billet, quantite) => {
+  const addToCart = useCallback((billet: CartItem, quantite: number) => {
     console.log('🧺 Ajout au panier :', billet, 'quantité demandée :', quantite);
 
     setCart(prev => {
-      // trouve l'entrée existante (le cas échéant)
       const idx = prev.findIndex(item => item.id_billet === billet.id_billet);
       const already = idx >= 0 ? prev[idx].quantite : 0;
-      const maxAdd = billet.quantite - already;       // combien il reste
-      const toAdd = Math.min(quantite, maxAdd);       // n'ajoute pas plus que dispo
-      if (toAdd <= 0) return prev;                    // rien à faire
+      const maxAdd = ('quantite' in billet ? billet.quantite : 0) - already;
+      const toAdd = Math.min(quantite, maxAdd);
+      if (toAdd <= 0) return prev;
 
-      // reconstruit le panier sans doublons
       const base = prev.filter(item => item.id_billet !== billet.id_billet);
       return [...base, { ...billet, quantite: already + toAdd }];
     });
-  };
+  }, []);
 
-  // Retirer un billet du panier
-  const removeFromCart = (id_billet) => {
+  const removeFromCart = useCallback((id_billet: string) => {
     setCart(prev => prev.filter(item => item.id_billet !== id_billet));
-  };
+  }, []);
 
-  // Vider complètement le panier
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCart([]);
-    localStorage.removeItem('cart');
-  };
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cart');
+    }
+  }, []);
 
   return (
     <CartContext.Provider value={{ cart, addToCart, removeFromCart, clearCart }}>
@@ -57,4 +79,10 @@ export const CartProvider = ({ children }) => {
   );
 };
 
-export const useCart = () => useContext(CartContext);
+export function useCart(): CartContextType {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+}

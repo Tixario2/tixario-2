@@ -14,7 +14,7 @@ export default function ContactPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSuccessMessage('');
     setErrorMessage('');
@@ -22,9 +22,9 @@ export default function ContactPage() {
     const { data, error } = await supabase.from('contacts').insert([formData]);
 
     if (error) {
-      setErrorMessage("❌ Une erreur est survenue. Veuillez réessayer.");
+      setErrorMessage('❌ Une erreur est survenue. Veuillez réessayer.');
     } else {
-      setSuccessMessage("✅ Formulaire bien envoyé. Merci !");
+      setSuccessMessage('✅ Formulaire bien envoyé. Merci !');
       setFormData({
         nom: '',
         email: '',
@@ -42,7 +42,7 @@ export default function ContactPage() {
           <h1 className="text-3xl font-bold mb-4">Contactez-nous</h1>
 
           <p className="mb-6 text-gray-300">
-            Vous avez une question ou cherchez un événement spécifique ? <br />
+            Vous avez une question ou cherchez un événement spécifique ?<br />
             Notre équipe est là pour vous aider ! Nous répondons rapidement par email.
           </p>
 
@@ -113,14 +113,14 @@ export default function ContactPage() {
             <div>
               <h3 className="font-semibold text-white">Quand vais-je recevoir mes billets ?</h3>
               <p>
-                Nous envoyons les billets sous 24h après réception du paiement, par email ou WhatsApp.
+                Nous envoyons les billets sous 24 h après réception du paiement, par email ou WhatsApp.
                 Pour certains événements, les billets ne sont pas encore disponibles immédiatement : dans ce cas, ils sont sécurisés en interne et envoyés dès qu’ils deviennent disponibles.
               </p>
             </div>
             <div>
               <h3 className="font-semibold text-white">Comment être sûr que les billets sont authentiques ?</h3>
               <p>
-                Tous les billets que nous vendons sont 100% garantis valides. En cas de problème, vous êtes intégralement remboursé.
+                Tous les billets que nous vendons sont 100 % garantis valides. En cas de problème, vous êtes intégralement remboursé.
                 Consultez nos avis sur Google et les stories de nos clients sur Instagram.
               </p>
             </div>
@@ -129,12 +129,12 @@ export default function ContactPage() {
               <p>Nous acceptons les cartes bancaires via Stripe ainsi que les virements bancaires.</p>
             </div>
             <div>
-              <h3 className="font-semibold text-white">Je ne trouve pas l’événement que je cherche. Que faire ?</h3>
-              <p>Contactez-nous avec les détails (nom de l’événement, budget, nombre de places), et on s’en occupe.</p>
+              <h3 className="font-semibold text-white">Je ne trouve pas l&rsquo;événement que je cherche. Que faire ?</h3>
+              <p>Contactez-nous avec les détails (nom de l&rsquo;événement, budget, nombre de places), et on s&rsquo;en occupe.</p>
             </div>
             <div>
               <h3 className="font-semibold text-white">Que se passe-t-il si un événement est annulé ?</h3>
-              <p>En cas d’annulation officielle, vous êtes remboursé ou recevrez des billets pour la nouvelle date.</p>
+              <p>En cas d&rsquo;annulation officielle, vous êtes remboursé ou recevrez des billets pour la nouvelle date.</p>
             </div>
             <div>
               <h3 className="font-semibold text-white">Puis-je modifier ou annuler une commande ?</h3>
@@ -144,7 +144,7 @@ export default function ContactPage() {
 
           <div className="mt-12 text-center">
             <Link href="/" className="text-blue-400 underline">
-              ← Retour à l'accueil
+              ← Retour à l&rsquo;accueil
             </Link>
           </div>
         </div>

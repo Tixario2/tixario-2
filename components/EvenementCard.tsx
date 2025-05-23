@@ -2,14 +2,14 @@
 import Link from "next/link";
 import Image from "next/image";
 
-type Props = {
+interface Props {
   artiste: string;
   ville: string;
   imageUrl: string;
   dates: string[];        // pour l’affichage
   slugEvent: string;      // ex: "acdc" ou "hellfestopenairfestival"
   slugDates?: string[];   // ISO dates ["2025-08-09", ...]
-};
+}
 
 export default function EvenementCard({
   artiste,
