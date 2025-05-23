@@ -12,8 +12,9 @@ interface EventItem {
   nom: string
   slugEvent: string
   logo?: string
-  dates: string[]
+  // dates: string[]  // <-- COMMENTE ou SUPPRIME cette ligne
 }
+
 
 interface EventHeaderProps {
   logoUrl: string
