@@ -26,8 +26,8 @@ export default function Header() {
   useEffect(() => {
     const fetchMenu = async () => {
       const { data, error } = await supabase
-        .from<BilletRecord>('billets')
-        .select('evenement, slug, date, logo_artiste')
+        .from('billets')
+        .select<BilletRecord>('evenement, slug, date, logo_artiste')
       if (error || !data) return
 
       const map = new Map<string, EventMenuItem>()
@@ -95,7 +95,8 @@ export default function Header() {
           >
             <span className="cursor-pointer">Événements ▾</span>
             <div
-              className={`
+              className={
+                `
                 absolute top-full left-0 mt-2 bg-gray-900 text-white border border-gray-700
                 rounded min-w-[200px] z-50 transition-opacity duration-200
                 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
@@ -138,8 +139,3 @@ export default function Header() {
     </header>
   )
 }
-
-
-
-
-
