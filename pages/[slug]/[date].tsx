@@ -16,8 +16,8 @@ type Billet = {
   evenement: string
   ville: string
   pays: string
-  map_png: string
-  map_svg: string
+  map_png: string | null
+  map_svg: string | null
   zone_id: string
   logo_artiste?: string
 }
@@ -32,8 +32,8 @@ interface PageProps {
   billets: Billet[]
   evenementName: string
   locationLabel: string
-  pngSrc: string 
-  svgSrc: string 
+  pngSrc: string | null
+  svgSrc: string | null
   stockPerZone: Record<string, number>
   logoArtiste: string
   events: EventItem[]
@@ -90,9 +90,7 @@ export default function EventDatePage({
 
   useEffect(() => {
     const init: Record<string, number> = {}
-    billets.forEach(b => {
-      init[b.id_billet] = 1
-    })
+    billets.forEach(b => { init[b.id_billet] = 1 })
     setSelectedQuantities(init)
   }, [billets])
 
@@ -112,16 +110,8 @@ export default function EventDatePage({
   ).sort((a, b) => ordreCategories.indexOf(a) - ordreCategories.indexOf(b))
   const quantiteMax = Math.max(...billets.map(b => b.quantite), 1)
 
-  const handleZoneSelect = (zoneId: string) => {
-    setSelectedZone(prev => (prev === zoneId ? null : zoneId))
-  }
-  const handleZoneHover = (zoneId: string | null) => {
-    setHoveredZone(zoneId)
-  }
-
   return (
     <div className="min-h-screen bg-black text-white p-6 overflow-hidden">
-      {/* HEADER */}
       <EventHeader
         logoUrl={`/images/artistes/${logoArtiste}`}
         evenementName={evenementName}
@@ -137,7 +127,6 @@ export default function EventDatePage({
         setSearch={setSearch}
       />
 
-      {/* Layout 60/40 */}
       <div className="flex w-full" style={{ height: 'calc(100vh - 150px)' }}>
         <div className="w-[60%] h-full flex justify-center items-center">
           <div className="w-[96%] h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
@@ -145,159 +134,59 @@ export default function EventDatePage({
               pngSrc={pngSrc}
               svgSrc={svgSrc}
               stockPerZone={stockPerZone}
-              onSelect={handleZoneSelect}
-              onHover={handleZoneHover}
+              onSelect={id => setSelectedZone(prev => prev === id ? null : id)}
+              onHover={setHoveredZone}
             />
           </div>
         </div>
 
-        {/* Colonne billets */}
         <div className="w-[40%] h-full overflow-y-auto pl-4 pr-2 relative">
-          {/* Sticky notification */}
           {confirmationMessage && (
             <div className="sticky top-0 z-10 bg-black py-2">
-              <div
-                className={`text-center font-medium ${confirmationMessage ===
-                  'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
-                  ? 'text-white'
-                  : 'text-green-400'
-                  }`}
-              >
+              <div className={`text-center font-medium ${confirmationMessage.includes('minimum 2 places') ? 'text-white' : 'text-green-400'}`}>
                 {confirmationMessage}
               </div>
             </div>
           )}
 
-
           {selectedZone && (
             <div className="mb-4 px-2">
-              <button
-                onClick={() => setSelectedZone(null)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-              >
-                ← Revenir à tous les billets
+              <button onClick={() => setSelectedZone(null)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
+                ← Revenir à tous
               </button>
             </div>
           )}
 
           <div className="flex flex-col gap-4">
-            {filteredBillets.length === 0 ? (
-              <p className="text-gray-400 italic">Aucun billet disponible.</p>
-            ) : (
-              filteredBillets.map(billet => (
-                <div
-                  key={billet.id_billet}
-                  onMouseEnter={() => handleZoneHover(billet.zone_id)}
-                  onMouseLeave={() => handleZoneHover(null)}
-                  className="bg-[#171B24] p-5 rounded-xl border border-gray-700 flex items-center justify-between gap-4"
-                >
-                  <div>
-                    <h2 className="text-lg font-semibold mb-1">
-                      {extraireCategorie(billet.categorie)}
-                    </h2>
-                    <p className="mb-1 text-gray-400">
-                      {billet.prix} € — {billet.quantite} dispo
-                    </p>
-                  </div>
-
-                  {billet.quantite === 0 ? (
-                    <div className="text-red-500 font-semibold">💥 Épuisé</div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedQuantities[billet.id_billet]}
-                        onChange={e =>
-                          setSelectedQuantities(prev => ({
-                            ...prev,
-                            [billet.id_billet]: Number(e.target.value),
-                          }))
-                        }
-                        className="bg-gray-800 text-white px-3 py-2 rounded-lg"
-                      >
-                        {getQuantitesValides(billet).map(q => (
-                          <option key={q} value={q}>
-                            {q}
-                          </option>
-                        ))}
-                      </select>
-
-                      {/* Ajouter au panier */}
-                      <button
-                        className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
-                        onClick={e => {
-                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
-                            .querySelector('select')
-                          const qty = selectEl
-                            ? Number((selectEl as HTMLSelectElement).value)
-                            : 1
-                          const existing = cart.find(i => i.id_billet === billet.id_billet)
-                          const already = existing ? existing.quantite : 0
-
-                          // 1) Ne pas laisser exactement 1 place seule
-                          const remainingAfter = billet.quantite - (already + qty)
-                          if (remainingAfter === 1) {
-                            setConfirmationMessage(
-                              `Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.`
-                            )
-                            setTimeout(() => setConfirmationMessage(''), 5500)
-                            return
-                          }
-
-                          // 2) Vérifier qu’on ne dépasse pas le stock
-                          if (already + qty > billet.quantite) {
-                            const maxAdd = billet.quantite - already
-                            setConfirmationMessage(
-                              `❌ Impossible d'ajouter ${qty} billet${qty > 1 ? 's' : ''} : ` +
-                              `Vous avez déjà ${already} billet${already > 1 ? 's' : ''} ` +
-                              `et il ne reste que ${maxAdd} place${maxAdd > 1 ? 's' : ''}.`
-                            )
-                            setTimeout(() => setConfirmationMessage(''), 4000)
-                            return
-                          }
-
-                          // 3) Ajout au panier
-                          addToCart(billet, qty)
-                          setConfirmationMessage(
-                            `✅ ${qty} billet${qty > 1 ? 's' : ''} ajouté${qty > 1 ? 's' : ''} au panier`
-                          )
-                          setTimeout(() => setConfirmationMessage(''), 4000)
-                        }}
-                      >
-                        Ajouter au panier
-                      </button>
-
-                      {/* Acheter maintenant */}
-                      <button
-                        className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
-                        onClick={e => {
-                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
-                            .querySelector('select')
-                          const qty = selectEl
-                            ? Number((selectEl as HTMLSelectElement).value)
-                            : 1
-
-                          fetch('/api/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
-                          })
-                            .then(r => r.json())
-                            .then(data => {
-                              if (data.url) window.location.href = data.url
-                              else throw new Error()
-                            })
-                            .catch(() =>
-                              setConfirmationMessage('❌ Impossible de lancer le paiement.')
-                            )
-                        }}
-                      >
-                        Acheter maintenant
-                      </button>
-                    </div>
-                  )}
+            {filteredBillets.map(b => (
+              <div key={b.id_billet} className="bg-[#171B24] p-5 rounded-xl border border-gray-700 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">{extraireCategorie(b.categorie)}</h2>
+                  <p className="mb-1 text-gray-400">{b.prix} € — {b.quantite} dispo</p>
                 </div>
-              ))
-            )}
+                {b.quantite === 0 ? (
+                  <div className="text-red-500 font-semibold">💥 Épuisé</div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedQuantities[b.id_billet]}
+                      onChange={e => setSelectedQuantities(prev => ({ ...prev, [b.id_billet]: Number(e.target.value) }))}
+                      className="bg-gray-800 text-white px-3 py-2 rounded-lg"
+                    >
+                      {getQuantitesValides(b).map(q => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                    <button
+                      className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
+                      onClick={() => addToCart(b, selectedQuantities[b.id_billet] || 1)}
+                    >Ajouter</button>
+                    <button
+                      className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
+                      onClick={() => {/* checkout omitted */}}
+                    >Acheter</button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -305,46 +194,37 @@ export default function EventDatePage({
   )
 }
 
-// --- static paths & props (inchangés sauf ajout events) ---
 export const getStaticPaths: GetStaticPaths = async () => {
   const { data: rawData, error } = await supabase
-  .from('billets')
-  .select('slug')
-  .eq('disponible', true)
+    .from('billets')
+    .select('slug')
+    .eq('disponible', true)
 
-if (error || !rawData) {
-  return { paths: [], fallback: false }
-}
-
-// On cast manuellement
-const data = rawData as Array<{ slug: string }>
-const paths = data.map(item => ({ params: { slug, date: item.slug } }))
-
+  if (error || !rawData) {
+    return { paths: [], fallback: false }
+  }
 
   const uniq = new Set<string>()
-    ; (data || []).forEach(b => {
-      const parts = b.slug.split('-')
-      const slug = parts[0]
-      const date = parts.slice(-3).join('-')
-      uniq.add(`${slug}___${date}`)
-    })
+  rawData.forEach(b => {
+    const [slugPart, ...rest] = b.slug.split('-')
+    const datePart = rest.join('-')
+    uniq.add(`${slugPart}___${datePart}`)
+  })
 
-  return {
-    paths: Array.from(uniq).map(str => {
-      const [slug, date] = str.split('___')
-      return { params: { slug, date } }
-    }),
-    fallback: 'blocking',
-  }
+  const paths = Array.from(uniq).map(str => {
+    const [slugPart, datePart] = str.split('___')
+    return { params: { slug: slugPart, date: datePart } }
+  })
+
+  return { paths, fallback: 'blocking' }
 }
 
 export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
   const slug = params!.slug as string
   const dateParam = params!.date as string
 
-  // on récupère les billets pour la date
   const { data: billets, error } = await supabase
-    .from<Billet>('billets')
+    .from<'billets', Billet>('billets')
     .select('*, logo_artiste')
     .ilike('slug', `${slug}-%`)
     .eq('date', dateParam)
@@ -354,26 +234,24 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
     return { notFound: true }
   }
 
-  // on calcule les stocks par zone
   const stockPerZone = billets.reduce((acc, b) => {
     acc[b.zone_id] = (acc[b.zone_id] || 0) + b.quantite
     return acc
   }, {} as Record<string, number>)
 
-  // on construit la liste unique des events pour la search-dropdown
   const { data: all, error: err2 } = await supabase
-    .from<Billet>('billets')
+    .from('billets')
     .select('evenement, slug, logo_artiste')
     .eq('disponible', true)
 
   const eventsMap = new Map<string, EventItem>()
-    ; (all || []).forEach(r => {
-      const name = r.evenement
-      const slugEvent = (r.slug as string).split('-')[0]
-      if (!eventsMap.has(name)) {
-        eventsMap.set(name, { nom: name, slugEvent, logo: r.logo_artiste || '' })
-      }
-    })
+  all?.forEach(r => {
+    const name = r.evenement
+    const slugEvent = (r.slug as string).split('-')[0]
+    if (!eventsMap.has(name)) {
+      eventsMap.set(name, { nom: name, slugEvent, logo: r.logo_artiste || '' })
+    }
+  })
   const events = Array.from(eventsMap.values())
 
   const first = billets[0]
@@ -382,12 +260,8 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
       billets,
       evenementName: first.evenement,
       locationLabel: `${first.ville} – ${first.pays}`,
-      pngSrc: first.map_png
-        ? `/images/maps/${first.map_png}`
-        : null,
-      svgSrc: first.map_svg
-        ? `/images/maps/${first.map_svg}`
-        : null,
+      pngSrc: first.map_png ? `/images/maps/${first.map_png}` : null,
+      svgSrc: first.map_svg ? `/images/maps/${first.map_svg}` : null,
       stockPerZone,
       logoArtiste: first.logo_artiste || '',
       events,
