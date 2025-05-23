@@ -5,8 +5,8 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["upload.wikimedia.org"],
   },
+  // ← on ajoute bien IGNORE pendant la build
   eslint: {
-    // Ignore les erreurs ESLint durant la build (ne bloque plus next build)
     ignoreDuringBuilds: true,
   },
 };
