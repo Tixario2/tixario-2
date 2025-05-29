@@ -18,7 +18,7 @@ interface EventItem {
 interface EventHeaderProps {
   logoUrl: string
   evenementName: string
-  date: string          // ISO "YYYY-MM-DD"
+  date: string               // ISO "YYYY-MM-DD"
   locationLabel: string
 
   // filtres billet
@@ -32,6 +32,9 @@ interface EventHeaderProps {
   // mini-search événements
   search: string
   setSearch: (s: string) => void
+
+  // CORRECTION : ajoute events ici !
+  events: EventItem[]
 }
 
 interface BilletRecord {
@@ -54,6 +57,7 @@ export default function EventHeader({
   setFiltreCategorie,
   search,
   setSearch,
+  events, // <-- correction ici aussi
 }: EventHeaderProps) {
   const router = useRouter()
   const { cart = [] } = useCart() as { cart: Array<{ quantite: number }> }
@@ -226,3 +230,9 @@ export default function EventHeader({
     </div>
   )
 }
+
+
+
+
+
+
