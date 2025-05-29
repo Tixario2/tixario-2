@@ -26,14 +26,15 @@ type EventItem = {
   nom: string
   slugEvent: string
   logo: string
+  dates: string[]
 }
 
 interface PageProps {
   billets: Billet[]
   evenementName: string
   locationLabel: string
-  pngSrc: string 
-  svgSrc: string 
+  pngSrc: string | null
+  svgSrc: string | null
   stockPerZone: Record<string, number>
   logoArtiste: string
   events: EventItem[]
@@ -143,8 +144,8 @@ export default function EventDatePage({
         <div className="w-[60%] h-full flex justify-center items-center">
           <div className="w-[96%] h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
             <PanZoomMap
-              pngSrc={pngSrc}
-              svgSrc={svgSrc}
+              pngSrc={pngSrc || ''}
+              svgSrc={svgSrc || ''}
               stockPerZone={stockPerZone}
               onSelect={handleZoneSelect}
               onHover={handleZoneHover}
@@ -306,20 +307,20 @@ export default function EventDatePage({
   )
 }
 
-// --- static paths & props (inchangés sauf ajout events) ---
+// --- static paths & props ---
 export const getStaticPaths: GetStaticPaths = async () => {
   const { data } = await supabase
-    .from<Billet>('billets')
+    .from('billets')
     .select('slug')
     .eq('disponible', true)
 
   const uniq = new Set<string>()
-    ; (data || []).forEach(b => {
-      const parts = b.slug.split('-')
-      const slug = parts[0]
-      const date = parts.slice(-3).join('-')
-      uniq.add(`${slug}___${date}`)
-    })
+  ;(data || []).forEach(b => {
+    const parts = b.slug.split('-')
+    const slug = parts[0]
+    const date = parts.slice(-3).join('-')
+    uniq.add(`${slug}___${date}`)
+  })
 
   return {
     paths: Array.from(uniq).map(str => {
@@ -335,12 +336,14 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
   const dateParam = params!.date as string
 
   // on récupère les billets pour la date
-  const { data: billets, error } = await supabase
-    .from<Billet>('billets')
+  const { data, error } = await supabase
+    .from('billets')
     .select('*, logo_artiste')
     .ilike('slug', `${slug}-%`)
     .eq('date', dateParam)
     .eq('disponible', true)
+
+  const billets = data as Billet[]
 
   if (error || !billets || billets.length === 0) {
     return { notFound: true }
@@ -354,18 +357,24 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
 
   // on construit la liste unique des events pour la search-dropdown
   const { data: all, error: err2 } = await supabase
-    .from<Billet>('billets')
-    .select('evenement, slug, logo_artiste')
+    .from('billets')
+    .select('evenement, slug, logo_artiste, date')
     .eq('disponible', true)
 
   const eventsMap = new Map<string, EventItem>()
-    ; (all || []).forEach(r => {
-      const name = r.evenement
-      const slugEvent = (r.slug as string).split('-')[0]
-      if (!eventsMap.has(name)) {
-        eventsMap.set(name, { nom: name, slugEvent, logo: r.logo_artiste || '' })
-      }
-    })
+  ;(all || []).forEach(r => {
+    const name = r.evenement
+    const slugEvent = (r.slug as string).split('-')[0]
+    const logo = r.logo_artiste || ''
+    const date = r.date
+    if (!eventsMap.has(name)) {
+      eventsMap.set(name, { nom: name, slugEvent, logo, dates: [] })
+    }
+    const ev = eventsMap.get(name)!
+    if (date && !ev.dates.includes(date)) {
+      ev.dates.push(date)
+    }
+  })
   const events = Array.from(eventsMap.values())
 
   const first = billets[0]
