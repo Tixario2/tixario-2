@@ -8,7 +8,7 @@ if (!stripeSecretKey) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2022-11-15',
+  apiVersion: '2025-04-30.basil',
 });
 
 interface CartItem {
@@ -43,15 +43,16 @@ export default async function handler(
 
   try {
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items,
-      success_url: `${req.headers.origin}/success`,
-      cancel_url: `${req.headers.origin}/cancel`,
-      customer_creation: 'always',
-    });
+  mode: 'payment',
+  line_items,
+  success_url: `${req.headers.origin}/success`,
+  cancel_url: `${req.headers.origin}/cancel`,
+});
+
     return res.status(200).json({ url: session.url });
   } catch (err) {
     console.error('Stripe checkout session creation failed:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
+
