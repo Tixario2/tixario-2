@@ -27,7 +27,7 @@ export default function Header() {
     const fetchMenu = async () => {
       const { data, error } = await supabase
         .from('billets')
-        .select<BilletRecord>('evenement, slug, date, logo_artiste')
+.select('evenement, slug, date, logo_artiste')
       if (error || !data) return
 
       const map = new Map<string, EventMenuItem>()
