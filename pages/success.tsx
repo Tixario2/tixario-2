@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useCart } from '@/context/cartContext';
 import Link from 'next/link';
 
-export default function SuccessPage(): JSX.Element {
+export default function SuccessPage() {
   const { clearCart } = useCart();
 
   useEffect(() => {
@@ -53,4 +53,6 @@ export default function SuccessPage(): JSX.Element {
     </div>
   );
 }
+
+
 
