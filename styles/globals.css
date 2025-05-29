@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html, body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* 🎟️  Couleurs des blocs du plan SVG                                 */
+/* ------------------------------------------------------------------ */
+.zone-empty {
+  fill: transparent !important;
+}
+
+.zone-available {
+  fill: rgba(158, 229, 181, 0.6) !important;
+  transition: fill 0.2s ease;
+}
+
+.zone-available:hover {
+  fill: rgba(110, 207, 141, 0.8) !important;
+  cursor: pointer;
+}
+
+/* -- ASPECT RATIO 1:1 FALLBACK -- */
+.aspect-square {
+  position: relative;
+}
+.aspect-square::before {
+  content: "";
+  display: block;
+  padding-top: 100%;
+}
+.aspect-square > * {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* 🎨  Contained, draggable map wrapper                                */
+/* ------------------------------------------------------------------ */
+.map-wrapper {
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+.map-wrapper:active {
+  cursor: grabbing;
+}
+.map-wrapper img {
+  object-fit: contain;
+  object-position: center center !important;
+  width: 100%;
+  height: 100%;
+}
