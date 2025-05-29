@@ -15,7 +15,7 @@ if (!stripeWebhookSecret) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2022-11-15',
+  apiVersion: '2025-04-30.basil',
 });
 
 export const config = {
@@ -35,7 +35,7 @@ interface BilletInfo {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<{ received: true }>
+  res: NextApiResponse<{ received: boolean; error?: string }>
 ) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -50,10 +50,10 @@ export default async function handler(
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret);
+    event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret as string);
   } catch (err: any) {
     console.error('❌ Invalid Stripe webhook signature:', err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    return res.status(400).json({ received: false, error: err.message });
   }
 
   console.log('📩 Stripe webhook received:', event.type);
@@ -114,8 +114,13 @@ export default async function handler(
         const customer = await stripe.customers.retrieve(
           session.customer as string
         );
-        if (!Array.isArray(customer) && customer.email) {
-          emailClient = customer.email;
+        if (
+          !Array.isArray(customer) &&
+          typeof customer === 'object' &&
+          'deleted' in customer &&
+          (customer as any).deleted === false
+        ) {
+          emailClient = (customer as Stripe.Customer).email ?? null;
         }
       }
 
@@ -196,3 +201,4 @@ export default async function handler(
 
   res.status(200).json({ received: true });
 }
+
