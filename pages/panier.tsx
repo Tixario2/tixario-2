@@ -5,7 +5,7 @@ import { useCart } from '@/context/cartContext';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-export default function PanierPage(): JSX.Element {
+export default function PanierPage() {
   const { cart, removeFromCart } = useCart();
 
   // 1) Total price
@@ -126,3 +126,4 @@ export default function PanierPage(): JSX.Element {
     </div>
   );
 }
+
