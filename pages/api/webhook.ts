@@ -1,4 +1,3 @@
-// pages/api/webhook.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 import getRawBody from 'raw-body'
@@ -34,28 +33,38 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ received: boolean; error?: string }>
 ) {
+  console.log('🚀 webhook handler démarré')
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST'])
     return res.status(405).end('Method Not Allowed')
   }
 
+  // 1) Lire le raw body et la signature
   const rawBody = await getRawBody(req)
+  console.log('📦 rawBody length:', rawBody.length)
   const sig = req.headers['stripe-signature']
+  console.log('🔖 stripe-signature header:', sig)
   if (typeof sig !== 'string') {
     return res.status(400).end('Missing Stripe signature')
   }
 
+  // 2) Valider l’événement Stripe
   let event: Stripe.Event
   try {
     event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret)
+    console.log('✅ signature OK, event.type =', event.type)
   } catch (err: any) {
-    console.error('❌ Invalid Stripe webhook signature:', err)
+    console.error('❌ Invalid Stripe webhook signature:', err.message)
     return res.status(400).json({ received: false, error: err.message })
   }
 
+  // Test event
   console.log('📩 Stripe webhook received:', event.type)
 
+  // 3) Bloc métier
   if (event.type === 'checkout.session.completed') {
+    console.log('🎉 on entre bien dans checkout.session.completed')
     const session = event.data.object as Stripe.Checkout.Session
 
     try {
@@ -63,6 +72,7 @@ export default async function handler(
         session.id,
         { limit: 100 }
       )
+      console.log('🛒 lignes de paiement trouvées =', lineItems.data.length)
 
       const billetsInfos: BilletInfo[] = []
       const billetIds: string[] = []
@@ -236,11 +246,12 @@ export default async function handler(
     } catch (err) {
       console.error('❌ Webhook handler error:', err)
     }
+  } else {
+    console.warn('⚠️ reçu un event différent de checkout.session.completed')
   }
 
   res.status(200).json({ received: true })
 }
-
 
 
 
