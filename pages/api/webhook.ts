@@ -4,22 +4,19 @@ import Stripe from 'stripe'
 import getRawBody from 'raw-body'
 import { Resend } from 'resend'
 
-// ——— 4.1) Client Supabase “serveur” avec service_role key ———
+// 4.1) Client Supabase “serveur” avec service_role key
 import { createClient } from '@supabase/supabase-js'
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!   // ← ta SERVICE_ROLE key
+  process.env.SUPABASE_SERVICE_ROLE_KEY!   // <-- ta SERVICE_ROLE key
 )
 
 // Resend
 export const resend = new Resend(process.env.RESEND_API_KEY!)
 
 // Stripe setup
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY
-const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-if (!stripeSecretKey) throw new Error('Missing STRIPE_SECRET_KEY')
-if (!stripeWebhookSecret) throw new Error('Missing STRIPE_WEBHOOK_SECRET')
-
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY!
+const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 const stripe = new Stripe(stripeSecretKey, { apiVersion: '2025-04-30.basil' })
 
 export const config = { api: { bodyParser: false } }
@@ -44,12 +41,18 @@ export default async function handler(
 
   const rawBody = await getRawBody(req)
   const sig = req.headers['stripe-signature']
-  if (typeof sig !== 'string')
+  if (typeof sig !== 'string') {
     return res.status(400).end('Missing Stripe signature')
+  }
 
   let event: Stripe.Event
   try {
-    event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret)
+    // On force non-null sur stripeWebhookSecret
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      sig,
+      stripeWebhookSecret
+    )
   } catch (err: any) {
     console.error('❌ Invalid Stripe webhook signature:', err)
     return res.status(400).json({ received: false, error: err.message })
@@ -69,7 +72,7 @@ export default async function handler(
       const billetsInfos: BilletInfo[] = []
       const billetIds: string[] = []
 
-      // ——— 4.2a) Décrémenter le stock ———
+      // 4.2a) Décrémenter le stock
       for (const item of lineItems.data) {
         const desc = item.description || ''
         const match = desc.match(/\[ID:(.+?)\]/)
@@ -116,7 +119,9 @@ export default async function handler(
       // Récup email client
       let emailClient = session.customer_email
       if (!emailClient && session.customer) {
-        const customer = await stripe.customers.retrieve(session.customer as string)
+        const customer = await stripe.customers.retrieve(
+          session.customer as string
+        )
         if (
           !Array.isArray(customer) &&
           typeof customer === 'object' &&
@@ -127,7 +132,7 @@ export default async function handler(
         }
       }
 
-      // ——— 4.2b) Insertion dans commandes ———
+      // 4.2b) Insertion dans commandes
       const { data: commandeData, error: commandeError } = await supabase
         .from('commandes')
         .insert({
@@ -151,7 +156,7 @@ export default async function handler(
         console.log('🆔 Commande enregistrée, id =', commandeData.id)
       }
 
-      // ——— 4.2c) Insertion dans newsletter ———
+      // 4.2c) Insertion dans newsletter
       if (commandeData?.id && emailClient) {
         const { error: newsError } = await supabase
           .from('newsletter')
@@ -164,7 +169,7 @@ export default async function handler(
         else console.log('📬 Email ajouté à newsletter:', emailClient)
       }
 
-      // ——— 4.2d) Envoi de l’email via Resend ———
+      // 4.2d) Envoi de l’email via Resend
       if (emailClient) {
         console.log('🔑 Resend API Key loaded:', !!process.env.RESEND_API_KEY)
         console.log('📧 Envoi email à:', emailClient)
@@ -175,29 +180,16 @@ export default async function handler(
             subject: 'Confirmation de votre commande – Tixario',
             html: `
               <div style="font-family: Arial; background-color: #121212; color: #fff; padding: 32px; max-width: 600px; margin: auto; border-radius: 8px;">
-                <div style="text-align: center; margin-bottom: 32px;">
-                  <img src="https://tixario.com/logo-tixario.png" alt="Tixario" style="height: 40px;" />
-                </div>
+                <div style="text-align: center; margin-bottom: 32px;"><img src="https://tixario.com/logo-tixario.png" alt="Tixario" style="height: 40px;"/></div>
                 <h2 style="color: #eab308;">Merci pour votre commande sur Tixario</h2>
                 <p style="font-size: 16px; margin-bottom: 24px;">Commande n°${commandeData.id}</p>
-                <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;">
-                  <ul style="list-style: none; padding: 0; margin: 0;">
-                    ${billetsInfos
-                      .map(
-                        b => `
-                      <li style="margin-bottom: 10px;">
-                        ${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(2)} €
-                      </li>`
-                      )
-                      .join('')}
+                <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;"><ul style=""list-style: none; padding: 0; margin: 0;">
+                    ${billetsInfos.map(b => `<li style="margin-bottom: 10px;">${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(2)} €</li>`).join('')}
                   </ul>
                   <p style="margin-top: 16px; font-weight: bold;">Total : ${prixTotal.toFixed(2)} €</p>
                 </div>
                 <p style="font-size: 14px;">Vos billets seront envoyés sous 24 h par email ou WhatsApp.</p>
-                <p style="font-size: 14px;">
-                  Une question ? Écrivez à
-                  <a href="mailto:contact@tixario.com" style="color: #eab308;">contact@tixario.com</a>.
-                </p>
+                <p style="font-size: 14px;">Une question ? Écrivez à <a href="mailto:contact@tixario.com" style="color: #eab308;">contact@tixario.com</a>.</p>
               </div>
             `,
           })
@@ -215,4 +207,5 @@ export default async function handler(
 
   res.status(200).json({ received: true })
 }
+
 
