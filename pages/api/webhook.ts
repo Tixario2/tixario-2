@@ -1,13 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 import getRawBody from 'raw-body'
+import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
 
-// Initialise le client Supabase avec la service role key
+// — Client Supabase “serveur”
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+// Resend
+export const resend = new Resend(process.env.RESEND_API_KEY!)
 
 // Stripe setup
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -15,6 +19,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 })
 
 export const config = { api: { bodyParser: false } }
+
+interface BilletInfo {
+  description: string
+  quantite: number
+  montant_total: number
+  prix_unitaire: number
+  evenement: string
+  categorie: string
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -55,14 +68,31 @@ export default async function handler(
     return res.status(400).json({ received: false, error: err.message })
   }
 
-  // Traiter uniquement les paiements complétés
+  // On ne traite que checkout.session.completed
   if (event.type !== 'checkout.session.completed') {
     console.log('⚠️ Event non géré:', event.type)
     return res.status(200).json({ received: true })
   }
 
   const session = event.data.object as Stripe.Checkout.Session
-  console.log('📩 Traitement session.id =', session.id)
+  // Logs pour diagnostiquer l'email
+  console.log('✉️ session.customer_email   =', session.customer_email)
+  console.log('✉️ session.customer_details =', session.customer_details)
+  console.log('✉️ session.customer         =', session.customer)
+
+  // Récupération robuste de l'email client
+  let emailClient: string | null = null
+  if (session.customer_email) {
+    emailClient = session.customer_email
+  } else if (session.customer_details?.email) {
+    emailClient = session.customer_details.email
+  } else if (typeof session.customer === 'string') {
+    const cust = await stripe.customers.retrieve(session.customer)
+    if (!Array.isArray(cust) && !(cust as any).deleted) {
+      emailClient = (cust as Stripe.Customer).email ?? null
+    }
+  }
+  console.log('✉️ emailClient final       =', emailClient)
 
   try {
     // 3) Récupérer les line items
@@ -72,7 +102,7 @@ export default async function handler(
     )
     console.log('🛒 lineItems count =', lineItems.data.length)
 
-    // Décrémenter le stock pour chaque billet
+    // Décrémenter le stock
     const billetIds: string[] = []
     for (const item of lineItems.data) {
       const desc = item.description || ''
@@ -82,28 +112,27 @@ export default async function handler(
       if (billetId) {
         billetIds.push(billetId)
         console.log('🔽 Décrémentation billet', billetId, 'par', qty)
-        // Récup quantité actuelle
-        const { data: cur, error: e1 } = await supabase
+        const { data: cur, error: fetchErr } = await supabase
           .from('billets')
           .select('quantite')
           .eq('id_billet', billetId)
           .single()
-        if (e1) {
-          console.error('❌ Erreur fetch stock:', JSON.stringify(e1))
+        if (fetchErr) {
+          console.error('❌ Erreur fetch stock:', JSON.stringify(fetchErr))
         } else {
           const newQty = Math.max((cur.quantite || 0) - qty, 0)
-          const { error: e2 } = await supabase
+          const { error: updErr } = await supabase
             .from('billets')
             .update({ quantite: newQty })
             .eq('id_billet', billetId)
-          if (e2) console.error('❌ Erreur update stock:', JSON.stringify(e2))
+          if (updErr) console.error('❌ Erreur update stock:', JSON.stringify(updErr))
           else console.log('✅ Stock mis à jour', billetId, '→', newQty)
         }
       }
     }
 
-    // 4) Insérer la commande
-    const billetsInfos = lineItems.data.map(item => {
+    // 4) Préparer données commande
+    const billetsInfos: BilletInfo[] = lineItems.data.map(item => {
       const desc = item.description || ''
       const [evPart, catPart] = desc.split('–').map(s => s.trim())
       return {
@@ -118,11 +147,12 @@ export default async function handler(
     const totalQty = billetsInfos.reduce((a, b) => a + b.quantite, 0)
     const totalPrice = (session.amount_total ?? 0) / 100
 
+    // 5) Insertion commande
     const { data: cmdData, error: cmdErr } = await supabase
       .from('commandes')
       .insert({
         stripe_session_id: session.id,
-        email: session.customer_email,
+        email: emailClient,
         nom: session.customer_details?.name || null,
         billets: billetsInfos,
         quantite_total: totalQty,
@@ -134,28 +164,26 @@ export default async function handler(
       })
       .select('id')
       .single()
-
     if (cmdErr) console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
     else console.log('🆔 Commande insérée, id =', cmdData?.id)
 
-    // 5) Inscrire en newsletter
-    if (cmdData?.id && session.customer_email) {
+    // 6) Insertion newsletter si email dispo
+    if (cmdData?.id && emailClient) {
       const { error: newsErr } = await supabase
         .from('newsletter')
         .insert({
-          email: session.customer_email,
+          email: emailClient,
           source: 'commande',
           date_inscription: new Date().toISOString()
         })
       if (newsErr) console.error('❌ Erreur insert newsletter:', JSON.stringify(newsErr))
       else console.log('📬 Inscription newsletter réussie')
     }
-
   } catch (err: any) {
     console.error('❌ Erreur lors du traitement webhook:', err)
   }
 
-  // 6) Répondre à Stripe
+  // 7) Répondre à Stripe
   res.status(200).json({ received: true })
 }
 
