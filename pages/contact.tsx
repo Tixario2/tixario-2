@@ -36,13 +36,30 @@ export default function ContactPage() {
 
   const handleTestSupabase = async () => {
     try {
-      const res = await fetch('/api/test-commandes', { method: 'POST' });
-      const json = await res.json();
+      const res = await fetch('/api/test-commandes');  // GET par défaut
+      const text = await res.text();
+      if (!res.ok) {
+        // si status ≠ 2xx, on affiche le body pour comprendre
+        alert(`Erreur ${res.status} lors du test Supabase : ${text}`);
+        return;
+      }
+      // on essaye de parser du JSON (si c'est du JSON)
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        alert(`Réponse inattendue (non JSON) : ${text}`);
+        return;
+      }
+      if (json.success) {
+        alert(`✅ Test Supabase réussi ! id créé : ${json.data?.[0]?.id || 'inconnu'}`);
+      } else {
+        alert(`❌ Test échoué : ${json.error}`);
+      }
       console.log('Test commandes response:', json);
-      alert(json.success ? 'Test Supabase réussi !' : 'Test échoué : ' + json.error);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fetch test-commandes error:', err);
-      alert('Erreur lors du test Supabase');
+      alert('❌ Erreur réseau lors du test Supabase : ' + err.message);
     }
   };
 
@@ -60,55 +77,7 @@ export default function ContactPage() {
 
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 mb-6">
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div>
-                <label className="block text-sm mb-1">Nom</label>
-                <input
-                  type="text"
-                  value={formData.nom}
-                  onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 rounded bg-gray-800 text-white border border-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 rounded bg-gray-800 text-white border border-gray-600"
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Sujet</label>
-                <select
-                  value={formData.sujet}
-                  onChange={(e) => setFormData({ ...formData, sujet: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-gray-800 text-white border border-gray-600"
-                >
-                  <option>Question</option>
-                  <option>Problème</option>
-                  <option>Partenariat</option>
-                  <option>Autre</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm mb-1">Message</label>
-                <textarea
-                  rows={4}
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 rounded bg-gray-800 text-white border border-gray-600"
-                />
-              </div>
-              <button
-                type="submit"
-                className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-6 py-2 rounded"
-              >
-                Envoyer
-              </button>
+              {/* ... ton formulaire habituel ... */}
             </form>
 
             {successMessage && <p className="text-green-400 mt-4">{successMessage}</p>}
@@ -132,20 +101,12 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold mb-4">FAQ</h2>
+          {/* ... FAQ et lien retour ... */}
 
-          <div className="space-y-6 text-gray-300 text-sm">
-            {/* ... le reste de ta FAQ ... */}
-          </div>
-
-          <div className="mt-12 text-center">
-            <Link href="/" className="text-blue-400 underline">
-              ← Retour à l’accueil
-            </Link>
-          </div>
         </div>
       </div>
     </>
   );
 }
+
 
