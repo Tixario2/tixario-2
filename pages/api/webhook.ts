@@ -10,10 +10,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// Resend
+// — Resend email client
 export const resend = new Resend(process.env.RESEND_API_KEY!)
 
-// Stripe setup
+// — Stripe setup
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-04-30.basil',
 })
@@ -74,13 +74,13 @@ export default async function handler(
     return res.status(200).json({ received: true })
   }
 
+  // 3) Extraire la session
   const session = event.data.object as Stripe.Checkout.Session
-  // Logs pour diagnostiquer l'email
   console.log('✉️ session.customer_email   =', session.customer_email)
   console.log('✉️ session.customer_details =', session.customer_details)
   console.log('✉️ session.customer         =', session.customer)
 
-  // Récupération robuste de l'email client
+  // 4) Récupération robuste de l'email client
   let emailClient: string | null = null
   if (session.customer_email) {
     emailClient = session.customer_email
@@ -95,14 +95,14 @@ export default async function handler(
   console.log('✉️ emailClient final       =', emailClient)
 
   try {
-    // 3) Récupérer les line items
+    // 5) Récupérer les line items
     const lineItems = await stripe.checkout.sessions.listLineItems(
       session.id,
       { limit: 100 }
     )
     console.log('🛒 lineItems count =', lineItems.data.length)
 
-    // Décrémenter le stock
+    // 6) Décrémentation du stock
     const billetIds: string[] = []
     for (const item of lineItems.data) {
       const desc = item.description || ''
@@ -131,7 +131,7 @@ export default async function handler(
       }
     }
 
-    // 4) Préparer données commande
+    // 7) Préparer données commande
     const billetsInfos: BilletInfo[] = lineItems.data.map(item => {
       const desc = item.description || ''
       const [evPart, catPart] = desc.split('–').map(s => s.trim())
@@ -147,7 +147,7 @@ export default async function handler(
     const totalQty = billetsInfos.reduce((a, b) => a + b.quantite, 0)
     const totalPrice = (session.amount_total ?? 0) / 100
 
-    // 5) Insertion commande
+    // 8) Insertion de la commande
     const { data: cmdData, error: cmdErr } = await supabase
       .from('commandes')
       .insert({
@@ -167,7 +167,7 @@ export default async function handler(
     if (cmdErr) console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
     else console.log('🆔 Commande insérée, id =', cmdData?.id)
 
-    // 6) Insertion newsletter si email dispo
+    // 9) Inscription en newsletter
     if (cmdData?.id && emailClient) {
       const { error: newsErr } = await supabase
         .from('newsletter')
@@ -179,11 +179,52 @@ export default async function handler(
       if (newsErr) console.error('❌ Erreur insert newsletter:', JSON.stringify(newsErr))
       else console.log('📬 Inscription newsletter réussie')
     }
+
+    // 10) Envoi email de confirmation via Resend
+    if (cmdData?.id && emailClient) {
+      console.log('📧 Envoi email confirmation à:', emailClient)
+      try {
+        const result = await resend.emails.send({
+          from: 'contact@tixario.com',
+          to: emailClient,
+          subject: 'Confirmation de votre commande – Tixario',
+          html: `
+            <div style="font-family: Arial; background-color: #121212; color: #fff; padding: 32px; max-width: 600px; margin: auto; border-radius: 8px;">
+              <div style="text-align: center; margin-bottom: 32px;">
+                <img src="https://tixario.com/logo-tixario.png" alt="Tixario" style="height: 40px;" />
+              </div>
+              <h2 style="color: #eab308;">Merci pour votre commande sur Tixario</h2>
+              <p style="font-size: 16px; margin-bottom: 24px;">Commande n°${cmdData?.id}</p>
+              <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;">
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                  ${billetsInfos.map(b => `
+                    <li style="margin-bottom: 10px;">
+                      ${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(2)} €
+                    </li>`).join('')}
+                </ul>
+                <p style="margin-top: 16px; font-weight: bold;">Total : ${totalPrice.toFixed(2)} €</p>
+              </div>
+              <p style="font-size: 14px;">Vos billets seront envoyés sous 24 h par email ou WhatsApp.</p>
+              <p style="font-size: 14px;">
+                Une question ? Écrivez-nous à
+                <a href="mailto:contact@tixario.com" style="color: #eab308;">
+                  contact@tixario.com
+                </a>.
+              </p>
+            </div>
+          `
+        })
+        console.log('✅ Email confirmation envoyé:', result)
+      } catch (err) {
+        console.error('❌ Erreur envoi email confirmation:', err)
+      }
+    }
+
   } catch (err: any) {
     console.error('❌ Erreur lors du traitement webhook:', err)
   }
 
-  // 7) Répondre à Stripe
+  // 11) Réponse à Stripe
   res.status(200).json({ received: true })
 }
 
