@@ -2,6 +2,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
+// Utilise l'API crypto de Node pour générer un UUID valide
+const generateUUID = () => {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // fallback
+  return '00000000-0000-4000-8000-000000000000';
+};
+
 // Initialise le client Supabase avec la service role key
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -12,13 +21,15 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<{ success: boolean; error?: string; data?: any }>
 ) {
-  // On n'accepte que les GET ou POST, au choix :
   if (req.method !== 'GET' && req.method !== 'POST') {
     res.setHeader('Allow', ['GET', 'POST']);
     return res.status(405).end('Method Not Allowed');
   }
 
   try {
+    // Génère un UUID pour simuler un id de billet valide
+    const testBilletId = generateUUID();
+
     // Insère une ligne de test dans commandes
     const { data, error } = await supabase
       .from('commandes')
@@ -40,10 +51,10 @@ export default async function handler(
         prix_total: 0,
         date_evenement: null,
         evenement: 'Test Event',
-        id_billets: ['test-id'],
+        id_billets: [testBilletId],
         date_creation: new Date().toISOString(),
       })
-      .select(); // pour renvoyer l’objet créé
+      .select();
 
     if (error) {
       console.error('❌ test-commandes insert error:', error);
@@ -57,4 +68,5 @@ export default async function handler(
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
 
