@@ -34,6 +34,8 @@ export default async function handler(
   res: NextApiResponse<{ received: boolean; error?: string }>
 ) {
   console.log('🚀 webhook handler démarré')
+  console.log('🔧 SUPABASE_URL =', process.env.SUPABASE_URL)
+  console.log('🔑 SERVICE_ROLE_KEY loaded =', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST'])
@@ -59,8 +61,18 @@ export default async function handler(
     return res.status(400).json({ received: false, error: err.message })
   }
 
-  // Test event
   console.log('📩 Stripe webhook received:', event.type)
+
+  // Test accès Supabase
+  try {
+    const { data: testData, error: testErr } = await supabase
+      .from('billets')
+      .select('id_billet')
+      .limit(1)
+    console.log('🔍 test SELECT billets:', testData, 'error:', JSON.stringify(testErr, null, 2))
+  } catch (err: any) {
+    console.error('❌ Erreur test SELECT billets:', err)
+  }
 
   // 3) Bloc métier
   if (event.type === 'checkout.session.completed') {
@@ -95,7 +107,7 @@ export default async function handler(
             .single()
 
           if (fetchError) {
-            console.error('❌ Erreur lecture stock:', fetchError)
+            console.error('❌ Erreur lecture stock:', JSON.stringify(fetchError, null, 2))
           } else {
             const nouvelleQuantite = Math.max((current.quantite || 0) - qty, 0)
             const { data: updated, error: stockError } = await supabase
@@ -104,7 +116,7 @@ export default async function handler(
               .eq('id_billet', billetId)
 
             if (stockError)
-              console.error('❌ Erreur mise à jour stock:', stockError)
+              console.error('❌ Erreur mise à jour stock:', JSON.stringify(stockError, null, 2))
             else
               console.log(
                 '✅ Stock mis à jour pour',
@@ -175,7 +187,7 @@ export default async function handler(
         .single()
 
       if (commandeError) {
-        console.error('❌ Order insertion error:', commandeError)
+        console.error('❌ Order insertion error:', JSON.stringify(commandeError, null, 2))
       } else {
         console.log('🆔 Commande enregistrée, id =', commandeData?.id)
       }
@@ -189,8 +201,10 @@ export default async function handler(
             source: 'commande',
             date_inscription: new Date().toISOString(),
           })
-        if (newsError) console.error('❌ Newsletter insertion error:', newsError)
-        else console.log('📬 Email ajouté à newsletter:', emailClient)
+        if (newsError)
+          console.error('❌ Newsletter insertion error:', JSON.stringify(newsError, null, 2))
+        else
+          console.log('📬 Email ajouté à newsletter:', emailClient)
       }
 
       // 4.2d) Envoi de l’email via Resend
@@ -211,20 +225,12 @@ export default async function handler(
                 <p style="font-size: 16px; margin-bottom: 24px;">Commande n°${commandeData?.id}</p>
                 <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;">
                   <ul style="list-style: none; padding: 0; margin: 0;">
-                    ${billetsInfos
-                      .map(
-                        b => `
+                    ${billetsInfos.map(b => `
                       <li style="margin-bottom: 10px;">
-                        ${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(
-                          2
-                        )} €
-                      </li>`
-                      )
-                      .join('')}
+                        ${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(2)} €
+                      </li>`).join('')}
                   </ul>
-                  <p style="margin-top: 16px; font-weight: bold;">Total : ${prixTotal.toFixed(
-                    2
-                  )} €</p>
+                  <p style="margin-top: 16px; font-weight: bold;">Total : ${prixTotal.toFixed(2)} €</p>
                 </div>
                 <p style="font-size: 14px;">Vos billets seront envoyés sous 24 h par email ou WhatsApp.</p>
                 <p style="font-size: 14px;">
@@ -234,7 +240,7 @@ export default async function handler(
                   </a>.
                 </p>
               </div>
-            `,
+            `
           })
           console.log('✅ Confirmation email sent:', result)
         } catch (err) {
