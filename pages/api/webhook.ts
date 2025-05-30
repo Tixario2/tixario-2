@@ -3,12 +3,12 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import Stripe from 'stripe'
 import getRawBody from 'raw-body'
 import { Resend } from 'resend'
-
-// Supabase “serveur” avec service_role key
 import { createClient } from '@supabase/supabase-js'
+
+// — 4.1) Client Supabase “serveur”
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!   // <-- service_role key
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 // Resend
@@ -41,8 +41,9 @@ export default async function handler(
 
   const rawBody = await getRawBody(req)
   const sig = req.headers['stripe-signature']
-  if (typeof sig !== 'string')
+  if (typeof sig !== 'string') {
     return res.status(400).end('Missing Stripe signature')
+  }
 
   let event: Stripe.Event
   try {
@@ -77,7 +78,6 @@ export default async function handler(
           billetIds.push(billetId)
           console.log('🔽 Décrémentation billet', billetId, 'par', qty)
 
-          // 1) Récupérer la quantité actuelle
           const { data: current, error: fetchError } = await supabase
             .from('billets')
             .select('quantite')
@@ -87,23 +87,30 @@ export default async function handler(
           if (fetchError) {
             console.error('❌ Erreur lecture stock:', fetchError)
           } else {
-            // 2) Calculer la nouvelle quantité
             const nouvelleQuantite = Math.max((current.quantite || 0) - qty, 0)
-
-            // 3) Mettre à jour
             const { data: updated, error: stockError } = await supabase
               .from('billets')
               .update({ quantite: nouvelleQuantite })
               .eq('id_billet', billetId)
 
-            if (stockError) console.error('❌ Erreur mise à jour stock:', stockError)
-            else console.log('✅ Stock mis à jour pour', billetId, '→', nouvelleQuantite)
+            if (stockError)
+              console.error('❌ Erreur mise à jour stock:', stockError)
+            else
+              console.log(
+                '✅ Stock mis à jour pour',
+                billetId,
+                '→',
+                nouvelleQuantite
+              )
           }
         }
 
-        const [evenementPart, categoriePart] = desc.split('–').map(s => s.trim())
+        const [evenementPart, categoriePart] = desc
+          .split('–')
+          .map(s => s.trim())
         const montantTotal = (item.amount_total ?? 0) / 100
-        const prixUnitaire = ((item.amount_subtotal ?? 0) / (item.quantity ?? 1)) / 100
+        const prixUnitaire =
+          ((item.amount_subtotal ?? 0) / (item.quantity ?? 1)) / 100
 
         billetsInfos.push({
           description: evenementPart,
@@ -126,7 +133,9 @@ export default async function handler(
       // Récup email client
       let emailClient = session.customer_email
       if (!emailClient && session.customer) {
-        const customer = await stripe.customers.retrieve(session.customer as string)
+        const customer = await stripe.customers.retrieve(
+          session.customer as string
+        )
         if (
           !Array.isArray(customer) &&
           typeof customer === 'object' &&
@@ -158,7 +167,7 @@ export default async function handler(
       if (commandeError) {
         console.error('❌ Order insertion error:', commandeError)
       } else {
-        console.log('🆔 Commande enregistrée, id =', commandeData.id)
+        console.log('🆔 Commande enregistrée, id =', commandeData?.id)
       }
 
       // 4.2c) Insertion dans newsletter
@@ -175,7 +184,7 @@ export default async function handler(
       }
 
       // 4.2d) Envoi de l’email via Resend
-      if (emailClient) {
+      if (commandeData?.id && emailClient) {
         console.log('🔑 Resend API Key loaded:', !!process.env.RESEND_API_KEY)
         console.log('📧 Envoi email à:', emailClient)
         try {
@@ -185,16 +194,35 @@ export default async function handler(
             subject: 'Confirmation de votre commande – Tixario',
             html: `
               <div style="font-family: Arial; background-color: #121212; color: #fff; padding: 32px; max-width: 600px; margin: auto; border-radius: 8px;">
-                <div style="text-align: center; margin-bottom: 32px;"><img src="https://tixario.com/logo-tixario.png" alt="Tixario" style="height: 40px;"/></div>
+                <div style="text-align: center; margin-bottom: 32px;">
+                  <img src="https://tixario.com/logo-tixario.png" alt="Tixario" style="height: 40px;" />
+                </div>
                 <h2 style="color: #eab308;">Merci pour votre commande sur Tixario</h2>
-                <p style="font-size: 16px; margin-bottom: 24px;">Commande n°${commandeData.id}</p>
-                <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;"><ul style="list-style: none; padding: 0; margin: 0;"><!-- list start -->
-                    ${billetsInfos.map(b => `<li style="margin-bottom: 10px;">${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(2)} €</li>`).join('')}
-                  <!-- list end --></ul>
-                  <p style="margin-top: 16px; font-weight: bold;">Total : ${prixTotal.toFixed(2)} €</p>
+                <p style="font-size: 16px; margin-bottom: 24px;">Commande n°${commandeData?.id}</p>
+                <div style="background-color: #1e1e1e; padding: 20px; border-radius: 6px; margin-bottom: 24px;">
+                  <ul style="list-style: none; padding: 0; margin: 0;">
+                    ${billetsInfos
+                      .map(
+                        b => `
+                      <li style="margin-bottom: 10px;">
+                        ${b.description} — ${b.quantite} × ${b.prix_unitaire.toFixed(
+                          2
+                        )} €
+                      </li>`
+                      )
+                      .join('')}
+                  </ul>
+                  <p style="margin-top: 16px; font-weight: bold;">Total : ${prixTotal.toFixed(
+                    2
+                  )} €</p>
                 </div>
                 <p style="font-size: 14px;">Vos billets seront envoyés sous 24 h par email ou WhatsApp.</p>
-                <p style="font-size: 14px;">Une question ? Écrivez à <a href="mailto:contact@tixario.com" style="color: #eab308;">contact@tixario.com</a>.</p>
+                <p style="font-size: 14px;">
+                  Une question ? Écrivez-nous à
+                  <a href="mailto:contact@tixario.com" style="color: #eab308;">
+                    contact@tixario.com
+                  </a>.
+                </p>
               </div>
             `,
           })
@@ -203,7 +231,7 @@ export default async function handler(
           console.error('❌ Resend send error:', err)
         }
       } else {
-        console.warn('⚠️ Pas d’email client, email non envoyé.')
+        console.warn('⚠️ Pas d’email client ou pas d’ID commande, email non envoyé.')
       }
     } catch (err) {
       console.error('❌ Webhook handler error:', err)
@@ -212,6 +240,7 @@ export default async function handler(
 
   res.status(200).json({ received: true })
 }
+
 
 
 
