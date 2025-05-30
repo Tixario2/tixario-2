@@ -7,7 +7,7 @@ const generateUUID = () => {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  // fallback
+  // fallback simple
   return '00000000-0000-4000-8000-000000000000';
 };
 
@@ -31,11 +31,11 @@ export default async function handler(
     const testBilletId = generateUUID();
 
     // Insère une ligne de test dans commandes
-    const { data, error } = await supabase
+    const { data: cmdData, error: cmdError } = await supabase
       .from('commandes')
       .insert({
         stripe_session_id: 'test-' + Date.now(),
-        email: 'test@example.com',
+        email: 'test-user@example.com',
         nom: 'Test User',
         billets: [
           {
@@ -54,15 +54,38 @@ export default async function handler(
         id_billets: [testBilletId],
         date_creation: new Date().toISOString(),
       })
-      .select();
+      .select()
+      .single();
 
-    if (error) {
-      console.error('❌ test-commandes insert error:', error);
-      return res.status(500).json({ success: false, error: error.message });
+    if (cmdError) {
+      console.error('❌ test-commandes insert commandes error:', cmdError);
+      return res.status(500).json({ success: false, error: cmdError.message });
     }
+    console.log('✅ test-commandes insert commandes success:', cmdData);
 
-    console.log('✅ test-commandes insert success:', data);
-    return res.status(200).json({ success: true, data });
+    // Insère une ligne de test dans newsletter
+    const randomEmail = `user${Date.now()}@example.com`;
+    const { data: newsData, error: newsError } = await supabase
+      .from('newsletter')
+      .insert({
+        email: randomEmail,
+        source: 'test-commandes',
+        date_inscription: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (newsError) {
+      console.error('❌ test-commandes insert newsletter error:', newsError);
+      return res.status(500).json({ success: false, error: newsError.message });
+    }
+    console.log('✅ test-commandes insert newsletter success:', newsData);
+
+    // Retourne les deux inserts
+    return res.status(200).json({
+      success: true,
+      data: { commande: cmdData, newsletter: newsData },
+    });
   } catch (err: any) {
     console.error('❌ test-commandes exception:', err);
     return res.status(500).json({ success: false, error: err.message });
