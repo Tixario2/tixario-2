@@ -122,6 +122,7 @@ export default function EventDatePage({
 
   return (
     <div className="min-h-screen bg-black text-white p-6 overflow-hidden">
+
       {/* HEADER */}
       <EventHeader
         logoUrl={`/images/artistes/${logoArtiste}`}
@@ -139,9 +140,17 @@ export default function EventDatePage({
         events={events}
       />
 
-      {/* Layout 60/40 */}
-      <div className="flex w-full" style={{ height: 'calc(100vh - 150px)' }}>
-        <div className="w-[60%] h-full flex justify-center items-center">
+      {/* ======= CONTENEUR PRINCIPAL =======
+          - On remplace `flex w-full` par `flex flex-col md:flex-row w-full` pour gérer mobile/desktop.
+          - On conserve le style height : calc(100vh - 150px).
+      */}
+      <div className="flex flex-col md:flex-row w-full" style={{ height: 'calc(100vh - 150px)' }}>
+
+        {/* ─────────── 1) SECTION CARTE ───────────
+            - Sur mobile (flex-col) : hauteur 50vh, largeur 100% (h-[50vh] w-full)
+            - Sur md+ : largeur 60% (w-[60%]), hauteur 100% (h-full)
+        */}
+        <div className="w-full md:w-[60%] h-[50vh] md:h-full flex justify-center items-center">
           <div className="w-[96%] h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
             <PanZoomMap
               pngSrc={pngSrc || ''}
@@ -153,16 +162,20 @@ export default function EventDatePage({
           </div>
         </div>
 
-        {/* Colonne billets */}
-        <div className="w-[40%] h-full overflow-y-auto pl-4 pr-2 relative">
+        {/* ─────────── 2) SECTION BILLETS ───────────
+            - Sur mobile : largeur 100%, hauteur 50vh, scroll vertical uniquement dans cette zone
+            - Sur md+ : largeur 40%, hauteur 100% (scroll vertical si besoin du viewport)
+        */}
+        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto pl-4 pr-2 relative bg-[#171B24]">
           {/* Sticky notification */}
           {confirmationMessage && (
             <div className="sticky top-0 z-10 bg-black py-2">
               <div
-                className={`text-center font-medium ${confirmationMessage ===
-                  'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
-                  ? 'text-white'
-                  : 'text-green-400'
+                className={`text-center font-medium ${
+                  confirmationMessage ===
+                    'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
+                    ? 'text-white'
+                    : 'text-green-400'
                   }`}
               >
                 {confirmationMessage}
@@ -170,7 +183,7 @@ export default function EventDatePage({
             </div>
           )}
 
-
+          {/* Bouton de retour si zone sélectionnée */}
           {selectedZone && (
             <div className="mb-4 px-2">
               <button
@@ -182,7 +195,7 @@ export default function EventDatePage({
             </div>
           )}
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 p-2">
             {filteredBillets.length === 0 ? (
               <p className="text-gray-400 italic">Aucun billet disponible.</p>
             ) : (
@@ -191,9 +204,9 @@ export default function EventDatePage({
                   key={billet.id_billet}
                   onMouseEnter={() => handleZoneHover(billet.zone_id)}
                   onMouseLeave={() => handleZoneHover(null)}
-                  className="bg-[#171B24] p-5 rounded-xl border border-gray-700 flex items-center justify-between gap-4"
+                  className="bg-[#1F2128] p-4 md:p-5 rounded-xl border border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4"
                 >
-                  <div>
+                  <div className="flex-1">
                     <h2 className="text-lg font-semibold mb-1">
                       {extraireCategorie(billet.categorie)}
                     </h2>
@@ -205,7 +218,7 @@ export default function EventDatePage({
                   {billet.quantite === 0 ? (
                     <div className="text-red-500 font-semibold">💥 Épuisé</div>
                   ) : (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-2 md:mt-0">
                       <select
                         value={selectedQuantities[billet.id_billet]}
                         onChange={e =>
