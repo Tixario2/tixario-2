@@ -121,203 +121,390 @@ export default function EventDatePage({
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-0 md:p-6 overflow-hidden">
-      {/* HEADER */}
-      <EventHeader
-        logoUrl={`/images/artistes/${logoArtiste}`}
-        evenementName={evenementName}
-        date={date}
-        locationLabel={locationLabel}
-        filtreQuantite={filtreQuantite}
-        setFiltreQuantite={setFiltreQuantite}
-        quantiteMax={quantiteMax}
-        categoriesDisponibles={categoriesDisponibles}
-        filtreCategorie={filtreCategorie}
-        setFiltreCategorie={setFiltreCategorie}
-        search={search}
-        setSearch={setSearch}
-        events={events}
-      />
+    <>
+      {/* ====================== */}
+      {/* === VERSION DESKTOP === */}
+      {/* ====================== */}
+      <div className="hidden md:block">
+        {/* On colle ici TOUT le JSX de la version 1 sans rien toucher. */}
+        <div className="min-h-screen bg-black text-white p-6 overflow-hidden">
+          {/* HEADER */}
+          <EventHeader
+            logoUrl={`/images/artistes/${logoArtiste}`}
+            evenementName={evenementName}
+            date={date}
+            locationLabel={locationLabel}
+            filtreQuantite={filtreQuantite}
+            setFiltreQuantite={setFiltreQuantite}
+            quantiteMax={quantiteMax}
+            categoriesDisponibles={categoriesDisponibles}
+            filtreCategorie={filtreCategorie}
+            setFiltreCategorie={setFiltreCategorie}
+            search={search}
+            setSearch={setSearch}
+            events={events}
+          />
 
-      {/* ===== CONTENEUR PRINCIPAL ===== */}
-      <div className="flex flex-col md:flex-row w-full" style={{ height: 'calc(100vh - 150px)' }}>
-        {/* ─── 1) SECTION CARTE ─── */}
-        <div className="w-full md:w-[60%] h-[50vh] md:h-full flex justify-center items-center">
-          <div className="w-full h-full md:w-[96%] md:h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
-            <PanZoomMap
-              pngSrc={pngSrc || ''}
-              svgSrc={svgSrc || ''}
-              stockPerZone={stockPerZone}
-              onSelect={handleZoneSelect}
-              onHover={handleZoneHover}
-            />
-          </div>
-        </div>
-
-        {/* ─── 2) SECTION BILLETS ─── */}
-        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto bg-[#171B24] md:bg-transparent px-0 md:pl-4 md:pr-2 relative">
-          {/* Sticky notification */}
-          {confirmationMessage && (
-            <div className="sticky top-0 z-10 bg-black py-2">
-              <div
-                className={`text-center font-medium ${
-                  confirmationMessage ===
-                    'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
-                    ? 'text-white'
-                    : 'text-green-400'
-                  }`}
-              >
-                {confirmationMessage}
+          {/* Layout 60/40 */}
+          <div className="flex w-full" style={{ height: 'calc(100vh - 150px)' }}>
+            <div className="w-[60%] h-full flex justify-center items-center">
+              <div className="w-[96%] h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
+                <PanZoomMap
+                  pngSrc={pngSrc || ''}
+                  svgSrc={svgSrc || ''}
+                  stockPerZone={stockPerZone}
+                  onSelect={handleZoneSelect}
+                  onHover={handleZoneHover}
+                />
               </div>
             </div>
-          )}
 
-          {/* Bouton de retour si une zone est sélectionnée */}
-          {selectedZone && (
-            <div className="mb-4 px-2">
-              <button
-                onClick={() => setSelectedZone(null)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-              >
-                ← Revenir à tous les billets
-              </button>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-4 p-2">
-            {filteredBillets.length === 0 ? (
-              <p className="text-gray-400 italic">Aucun billet disponible.</p>
-            ) : (
-              filteredBillets.map(billet => (
-                <div
-                  key={billet.id_billet}
-                  onMouseEnter={() => handleZoneHover(billet.zone_id)}
-                  onMouseLeave={() => handleZoneHover(null)}
-                  className="
-                    bg-[#1F2128]            /* version mobile (bg foncé) */
-                    p-4                     /* padding mobile */
-                    md:bg-[#171B24]         /* version desktop (couleur exacte V1) */
-                    md:p-5                  /* padding desktop V1 */
-                    rounded-xl 
-                    border border-gray-700 
-                    flex flex-col          /* mobile : colonnes */
-                    md:flex-row            /* desktop : rangée comme V1 */
-                    items-center 
-                    justify-between 
-                    gap-4
-                  "
-                >
-                  <div className="flex-1 md:flex-none">
-                    <h2 className="text-lg font-semibold mb-1">
-                      {extraireCategorie(billet.categorie)}
-                    </h2>
-                    <p className="mb-1 text-gray-400">
-                      {billet.prix} € — {billet.quantite} dispo
-                    </p>
+            {/* Colonne billets */}
+            <div className="w-[40%] h-full overflow-y-auto pl-4 pr-2 relative">
+              {/* Sticky notification */}
+              {confirmationMessage && (
+                <div className="sticky top-0 z-10 bg-black py-2">
+                  <div
+                    className={`text-center font-medium ${
+                      confirmationMessage ===
+                        'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
+                        ? 'text-white'
+                        : 'text-green-400'
+                      }`}
+                  >
+                    {confirmationMessage}
                   </div>
-
-                  {billet.quantite === 0 ? (
-                    <div className="text-red-500 font-semibold">💥 Épuisé</div>
-                  ) : (
-                    <div className="flex items-center gap-2 mt-2 md:mt-0">
-                      <select
-                        value={selectedQuantities[billet.id_billet]}
-                        onChange={e =>
-                          setSelectedQuantities(prev => ({
-                            ...prev,
-                            [billet.id_billet]: Number(e.target.value),
-                          }))
-                        }
-                        className="bg-gray-800 text-white px-3 py-2 rounded-lg"
-                      >
-                        {getQuantitesValides(billet).map(q => (
-                          <option key={q} value={q}>
-                            {q}
-                          </option>
-                        ))}
-                      </select>
-
-                      {/* Ajouter au panier */}
-                      <button
-                        className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
-                        onClick={e => {
-                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
-                            .querySelector('select')
-                          const qty = selectEl
-                            ? Number((selectEl as HTMLSelectElement).value)
-                            : 1
-                          const existing = cart.find(i => i.id_billet === billet.id_billet)
-                          const already = existing ? existing.quantite : 0
-
-                          // 1) Ne pas laisser exactement 1 place seule
-                          const remainingAfter = billet.quantite - (already + qty)
-                          if (remainingAfter === 1) {
-                            setConfirmationMessage(
-                              `Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.`
-                            )
-                            setTimeout(() => setConfirmationMessage(''), 5500)
-                            return
-                          }
-
-                          // 2) Vérifier qu’on ne dépasse pas le stock
-                          if (already + qty > billet.quantite) {
-                            const maxAdd = billet.quantite - already
-                            setConfirmationMessage(
-                              `❌ Impossible d'ajouter ${qty} billet${qty > 1 ? 's' : ''} : ` +
-                              `Vous avez déjà ${already} billet${already > 1 ? 's' : ''} ` +
-                              `et il ne reste que ${maxAdd} place${maxAdd > 1 ? 's' : ''}.`
-                            )
-                            setTimeout(() => setConfirmationMessage(''), 4000)
-                            return
-                          }
-
-                          // 3) Ajout au panier
-                          addToCart(billet, qty)
-                          setConfirmationMessage(
-                            `✅ ${qty} billet${qty > 1 ? 's' : ''} ajouté${qty > 1 ? 's' : ''} au panier`
-                          )
-                          setTimeout(() => setConfirmationMessage(''), 4000)
-                        }}
-                      >
-                        Ajouter au panier
-                      </button>
-
-                      {/* Acheter maintenant */}
-                      <button
-                        className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
-                        onClick={e => {
-                          const selectEl = (e.currentTarget.parentElement as HTMLElement)
-                            .querySelector('select')
-                          const qty = selectEl
-                            ? Number((selectEl as HTMLSelectElement).value)
-                            : 1
-
-                          fetch('/api/checkout', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
-                          })
-                            .then(r => r.json())
-                            .then(data => {
-                              if (data.url) window.location.href = data.url
-                              else throw new Error()
-                            })
-                            .catch(() =>
-                              setConfirmationMessage('❌ Impossible de lancer le paiement.')
-                            )
-                        }}
-                      >
-                        Acheter maintenant
-                      </button>
-                    </div>
-                  )}
                 </div>
-              ))
-            )}
+              )}
+
+              {selectedZone && (
+                <div className="mb-4 px-2">
+                  <button
+                    onClick={() => setSelectedZone(null)}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+                  >
+                    ← Revenir à tous les billets
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-4">
+                {filteredBillets.length === 0 ? (
+                  <p className="text-gray-400 italic">Aucun billet disponible.</p>
+                ) : (
+                  filteredBillets.map(billet => (
+                    <div
+                      key={billet.id_billet}
+                      onMouseEnter={() => handleZoneHover(billet.zone_id)}
+                      onMouseLeave={() => handleZoneHover(null)}
+                      className="bg-[#171B24] p-5 rounded-xl border border-gray-700 flex items-center justify-between gap-4"
+                    >
+                      <div>
+                        <h2 className="text-lg font-semibold mb-1">
+                          {extraireCategorie(billet.categorie)}
+                        </h2>
+                        <p className="mb-1 text-gray-400">
+                          {billet.prix} € — {billet.quantite} dispo
+                        </p>
+                      </div>
+
+                      {billet.quantite === 0 ? (
+                        <div className="text-red-500 font-semibold">💥 Épuisé</div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={selectedQuantities[billet.id_billet]}
+                            onChange={e =>
+                              setSelectedQuantities(prev => ({
+                                ...prev,
+                                [billet.id_billet]: Number(e.target.value),
+                              }))
+                            }
+                            className="bg-gray-800 text-white px-3 py-2 rounded-lg"
+                          >
+                            {getQuantitesValides(billet).map(q => (
+                              <option key={q} value={q}>
+                                {q}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Ajouter au panier */}
+                          <button
+                            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
+                            onClick={e => {
+                              const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                                .querySelector('select')
+                              const qty = selectEl
+                                ? Number((selectEl as HTMLSelectElement).value)
+                                : 1
+                              const existing = cart.find(i => i.id_billet === billet.id_billet)
+                              const already = existing ? existing.quantite : 0
+
+                              // 1) Ne pas laisser exactement 1 place seule
+                              const remainingAfter = billet.quantite - (already + qty)
+                              if (remainingAfter === 1) {
+                                setConfirmationMessage(
+                                  `Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.`
+                                )
+                                setTimeout(() => setConfirmationMessage(''), 5500)
+                                return
+                              }
+
+                              // 2) Vérifier qu’on ne dépasse pas le stock
+                              if (already + qty > billet.quantite) {
+                                const maxAdd = billet.quantite - already
+                                setConfirmationMessage(
+                                  `❌ Impossible d'ajouter ${qty} billet${qty > 1 ? 's' : ''} : ` +
+                                  `Vous avez déjà ${already} billet${already > 1 ? 's' : ''} ` +
+                                  `et il ne reste que ${maxAdd} place${maxAdd > 1 ? 's' : ''}.`
+                                )
+                                setTimeout(() => setConfirmationMessage(''), 4000)
+                                return
+                              }
+
+                              // 3) Ajout au panier
+                              addToCart(billet, qty)
+                              setConfirmationMessage(
+                                `✅ ${qty} billet${qty > 1 ? 's' : ''} ajouté${qty > 1 ? 's' : ''} au panier`
+                              )
+                              setTimeout(() => setConfirmationMessage(''), 4000)
+                            }}
+                          >
+                            Ajouter au panier
+                          </button>
+
+                          {/* Acheter maintenant */}
+                          <button
+                            className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
+                            onClick={e => {
+                              const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                                .querySelector('select')
+                              const qty = selectEl
+                                ? Number((selectEl as HTMLSelectElement).value)
+                                : 1
+
+                              fetch('/api/checkout', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
+                              })
+                                .then(r => r.json())
+                                .then(data => {
+                                  if (data.url) window.location.href = data.url
+                                  else throw new Error()
+                                })
+                                .catch(() =>
+                                  setConfirmationMessage('❌ Impossible de lancer le paiement.')
+                                )
+                            }}
+                          >
+                            Acheter maintenant
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* ===================== */}
+      {/* === VERSION MOBILE === */}
+      {/* ===================== */}
+      <div className="block md:hidden">
+        {/* On colle ici TOUT le JSX de la version 2 sans rien toucher. */}
+        <div className="min-h-screen bg-black text-white p-0 overflow-hidden">
+          {/* HEADER */}
+          <EventHeader
+            logoUrl={`/images/artistes/${logoArtiste}`}
+            evenementName={evenementName}
+            date={date}
+            locationLabel={locationLabel}
+            filtreQuantite={filtreQuantite}
+            setFiltreQuantite={setFiltreQuantite}
+            quantiteMax={quantiteMax}
+            categoriesDisponibles={categoriesDisponibles}
+            filtreCategorie={filtreCategorie}
+            setFiltreCategorie={setFiltreCategorie}
+            search={search}
+            setSearch={setSearch}
+            events={events}
+          />
+
+          {/* ======= CONTENEUR PRINCIPAL ======= */}
+          <div className="flex flex-col w-full" style={{ height: 'calc(100vh - 150px)' }}>
+            {/* ─────────── 1) SECTION CARTE ─────────── */}
+            <div className="w-full h-[50vh] flex justify-center items-center">
+              <div className="w-full h-full bg-white rounded-2xl shadow flex items-center justify-center">
+                <PanZoomMap
+                  pngSrc={pngSrc || ''}
+                  svgSrc={svgSrc || ''}
+                  stockPerZone={stockPerZone}
+                  onSelect={handleZoneSelect}
+                  onHover={handleZoneHover}
+                />
+              </div>
+            </div>
+
+            {/* ─────────── 2) SECTION BILLETS ─────────── */}
+            <div className="w-full h-[50vh] overflow-y-auto px-0 relative bg-[#171B24]">
+              {/* Sticky notification */}
+              {confirmationMessage && (
+                <div className="sticky top-0 z-10 bg-black py-2">
+                  <div
+                    className={`text-center font-medium ${
+                      confirmationMessage ===
+                        'Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.'
+                        ? 'text-white'
+                        : 'text-green-400'
+                      }`}
+                  >
+                    {confirmationMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* Bouton de retour si zone sélectionnée */}
+              {selectedZone && (
+                <div className="mb-4 px-2">
+                  <button
+                    onClick={() => setSelectedZone(null)}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+                  >
+                    ← Revenir à tous les billets
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-4 p-2">
+                {filteredBillets.length === 0 ? (
+                  <p className="text-gray-400 italic">Aucun billet disponible.</p>
+                ) : (
+                  filteredBillets.map(billet => (
+                    <div
+                      key={billet.id_billet}
+                      onMouseEnter={() => handleZoneHover(billet.zone_id)}
+                      onMouseLeave={() => handleZoneHover(null)}
+                      className="bg-[#1F2128] p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-between gap-4"
+                    >
+                      <div className="flex-1">
+                        <h2 className="text-lg font-semibold mb-1">
+                          {extraireCategorie(billet.categorie)}
+                        </h2>
+                        <p className="mb-1 text-gray-400">
+                          {billet.prix} € — {billet.quantite} dispo
+                        </p>
+                      </div>
+
+                      {billet.quantite === 0 ? (
+                        <div className="text-red-500 font-semibold">💥 Épuisé</div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-2">
+                          <select
+                            value={selectedQuantities[billet.id_billet]}
+                            onChange={e =>
+                              setSelectedQuantities(prev => ({
+                                ...prev,
+                                [billet.id_billet]: Number(e.target.value),
+                              }))
+                            }
+                            className="bg-gray-800 text-white px-3 py-2 rounded-lg"
+                          >
+                            {getQuantitesValides(billet).map(q => (
+                              <option key={q} value={q}>
+                                {q}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* Ajouter au panier */}
+                          <button
+                            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium"
+                            onClick={e => {
+                              const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                                .querySelector('select')
+                              const qty = selectEl
+                                ? Number((selectEl as HTMLSelectElement).value)
+                                : 1
+                              const existing = cart.find(i => i.id_billet === billet.id_billet)
+                              const already = existing ? existing.quantite : 0
+
+                              // 1) Ne pas laisser exactement 1 place seule
+                              const remainingAfter = billet.quantite - (already + qty)
+                              if (remainingAfter === 1) {
+                                setConfirmationMessage(
+                                  `Merci de sélectionner au minimum 2 places afin de ne pas laisser une seule place disponible.`
+                                )
+                                setTimeout(() => setConfirmationMessage(''), 5500)
+                                return
+                              }
+
+                              // 2) Vérifier qu’on ne dépasse pas le stock
+                              if (already + qty > billet.quantite) {
+                                const maxAdd = billet.quantite - already
+                                setConfirmationMessage(
+                                  `❌ Impossible d'ajouter ${qty} billet${qty > 1 ? 's' : ''} : ` +
+                                  `Vous avez déjà ${already} billet${already > 1 ? 's' : ''} ` +
+                                  `et il ne reste que ${maxAdd} place${maxAdd > 1 ? 's' : ''}.`
+                                )
+                                setTimeout(() => setConfirmationMessage(''), 4000)
+                                return
+                              }
+
+                              // 3) Ajout au panier
+                              addToCart(billet, qty)
+                              setConfirmationMessage(
+                                `✅ ${qty} billet${qty > 1 ? 's' : ''} ajouté${qty > 1 ? 's' : ''} au panier`
+                              )
+                              setTimeout(() => setConfirmationMessage(''), 4000)
+                            }}
+                          >
+                            Ajouter au panier
+                          </button>
+
+                          {/* Acheter maintenant */}
+                          <button
+                            className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium"
+                            onClick={e => {
+                              const selectEl = (e.currentTarget.parentElement as HTMLElement)
+                                .querySelector('select')
+                              const qty = selectEl
+                                ? Number((selectEl as HTMLSelectElement).value)
+                                : 1
+
+                              fetch('/api/checkout', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
+                              })
+                                .then(r => r.json())
+                                .then(data => {
+                                  if (data.url)
+                                    window.location.href = data.url
+                                  else throw new Error()
+                                })
+                                .catch(() =>
+                                  setConfirmationMessage('❌ Impossible de lancer le paiement.')
+                                )
+                            }}
+                          >
+                            Acheter maintenant
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
