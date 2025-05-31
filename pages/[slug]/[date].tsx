@@ -1,3 +1,4 @@
+// pages/[slug]/[date].tsx
 import { GetStaticPaths, GetStaticProps } from 'next'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
@@ -138,9 +139,9 @@ export default function EventDatePage({
         events={events}
       />
 
-      {/* ======= CONTENEUR PRINCIPAL ======= */}
+      {/* ===== CONTENEUR PRINCIPAL ===== */}
       <div className="flex flex-col md:flex-row w-full" style={{ height: 'calc(100vh - 150px)' }}>
-        {/* ─────────── 1) SECTION CARTE ─────────── */}
+        {/* ─── 1) SECTION CARTE ─── */}
         <div className="w-full md:w-[60%] h-[50vh] md:h-full flex justify-center items-center">
           <div className="w-full h-full md:w-[96%] md:h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
             <PanZoomMap
@@ -153,8 +154,8 @@ export default function EventDatePage({
           </div>
         </div>
 
-        {/* ─────────── 2) SECTION BILLETS ─────────── */}
-        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto px-0 md:px-4 relative bg-[#171B24]">
+        {/* ─── 2) SECTION BILLETS ─── */}
+        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto bg-[#171B24] md:bg-transparent px-0 md:pl-4 md:pr-2 relative">
           {/* Sticky notification */}
           {confirmationMessage && (
             <div className="sticky top-0 z-10 bg-black py-2">
@@ -171,7 +172,7 @@ export default function EventDatePage({
             </div>
           )}
 
-          {/* Bouton de retour si zone sélectionnée */}
+          {/* Bouton de retour si une zone est sélectionnée */}
           {selectedZone && (
             <div className="mb-4 px-2">
               <button
@@ -192,9 +193,21 @@ export default function EventDatePage({
                   key={billet.id_billet}
                   onMouseEnter={() => handleZoneHover(billet.zone_id)}
                   onMouseLeave={() => handleZoneHover(null)}
-                  className="bg-[#1F2128] p-4 md:p-5 rounded-xl border border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4"
+                  className="
+                    bg-[#1F2128]            /* version mobile (bg foncé) */
+                    p-4                     /* padding mobile */
+                    md:bg-[#171B24]         /* version desktop (couleur exacte V1) */
+                    md:p-5                  /* padding desktop V1 */
+                    rounded-xl 
+                    border border-gray-700 
+                    flex flex-col          /* mobile : colonnes */
+                    md:flex-row            /* desktop : rangée comme V1 */
+                    items-center 
+                    justify-between 
+                    gap-4
+                  "
                 >
-                  <div className="flex-1">
+                  <div className="flex-1 md:flex-none">
                     <h2 className="text-lg font-semibold mb-1">
                       {extraireCategorie(billet.categorie)}
                     </h2>
@@ -286,8 +299,7 @@ export default function EventDatePage({
                           })
                             .then(r => r.json())
                             .then(data => {
-                              if (data.url)
-                                window.location.href = data.url
+                              if (data.url) window.location.href = data.url
                               else throw new Error()
                             })
                             .catch(() =>
