@@ -121,8 +121,7 @@ export default function EventDatePage({
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 overflow-hidden">
-
+    <div className="min-h-screen bg-black text-white p-0 md:p-6 overflow-hidden">
       {/* HEADER */}
       <EventHeader
         logoUrl={`/images/artistes/${logoArtiste}`}
@@ -140,18 +139,11 @@ export default function EventDatePage({
         events={events}
       />
 
-      {/* ======= CONTENEUR PRINCIPAL =======
-          - On remplace `flex w-full` par `flex flex-col md:flex-row w-full` pour gérer mobile/desktop.
-          - On conserve le style height : calc(100vh - 150px).
-      */}
+      {/* Conteneur principal : flex-col sur mobile, flex-row sur md+ */}
       <div className="flex flex-col md:flex-row w-full" style={{ height: 'calc(100vh - 150px)' }}>
-
-        {/* ─────────── 1) SECTION CARTE ───────────
-            - Sur mobile (flex-col) : hauteur 50vh, largeur 100% (h-[50vh] w-full)
-            - Sur md+ : largeur 60% (w-[60%]), hauteur 100% (h-full)
-        */}
+        {/* ========== SECTION CARTE ========== */}
         <div className="w-full md:w-[60%] h-[50vh] md:h-full flex justify-center items-center">
-          <div className="w-[96%] h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
+          <div className="w-full h-full md:w-[96%] md:h-[96%] bg-white rounded-2xl shadow flex items-center justify-center">
             <PanZoomMap
               pngSrc={pngSrc || ''}
               svgSrc={svgSrc || ''}
@@ -162,11 +154,8 @@ export default function EventDatePage({
           </div>
         </div>
 
-        {/* ─────────── 2) SECTION BILLETS ───────────
-            - Sur mobile : largeur 100%, hauteur 50vh, scroll vertical uniquement dans cette zone
-            - Sur md+ : largeur 40%, hauteur 100% (scroll vertical si besoin du viewport)
-        */}
-        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto pl-4 pr-2 relative bg-[#171B24]">
+        {/* ======== SECTION BILLETS ======== */}
+        <div className="w-full md:w-[40%] h-[50vh] md:h-full overflow-y-auto px-0 md:px-4 relative bg-[#171B24]">
           {/* Sticky notification */}
           {confirmationMessage && (
             <div className="sticky top-0 z-10 bg-black py-2">
@@ -183,7 +172,6 @@ export default function EventDatePage({
             </div>
           )}
 
-          {/* Bouton de retour si zone sélectionnée */}
           {selectedZone && (
             <div className="mb-4 px-2">
               <button
@@ -204,7 +192,7 @@ export default function EventDatePage({
                   key={billet.id_billet}
                   onMouseEnter={() => handleZoneHover(billet.zone_id)}
                   onMouseLeave={() => handleZoneHover(null)}
-                  className="bg-[#1F2128] p-4 md:p-5 rounded-xl border border-gray-700 flex flex-col md:flex-row items-center justify-between gap-4"
+                  className="bg-[#1F2128] p-4 md:p-5 rounded-xl border border-gray-700 flex items-center justify-between gap-4"
                 >
                   <div className="flex-1">
                     <h2 className="text-lg font-semibold mb-1">
@@ -396,12 +384,8 @@ export const getStaticProps: GetStaticProps<PageProps> = async ({ params }) => {
       billets,
       evenementName: first.evenement,
       locationLabel: `${first.ville} – ${first.pays}`,
-      pngSrc: first.map_png
-        ? `/images/maps/${first.map_png}`
-        : null,
-      svgSrc: first.map_svg
-        ? `/images/maps/${first.map_svg}`
-        : null,
+      pngSrc: first.map_png ? `/images/maps/${first.map_png}` : null,
+      svgSrc: first.map_svg ? `/images/maps/${first.map_svg}` : null,
       stockPerZone,
       logoArtiste: first.logo_artiste || '',
       events,
