@@ -505,7 +505,6 @@ export default function EventDatePage({
   </div>
 </div>
 </>
-
 // --- static paths & props ---
 export const getStaticPaths: GetStaticPaths = async () => {
   const { data } = await supabase
