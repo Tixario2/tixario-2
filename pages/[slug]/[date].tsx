@@ -504,7 +504,7 @@ export default function EventDatePage({
     </div>
   </div>
 </div>
-
+</>
 
 // --- static paths & props ---
 export const getStaticPaths: GetStaticPaths = async () => {
