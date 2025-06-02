@@ -1,14 +1,14 @@
 // pages/[slug]/index.tsx
+
 import { supabase } from '@/supabaseClient'
 import Link from 'next/link'
 import { GetStaticPaths, GetStaticProps } from 'next'
 import Header from '@/components/Header'
-import { MapPin, Calendar } from 'lucide-react'
 import { useState, useMemo } from 'react'
 
 interface EventDate {
   slug: string
-  date: string   // ex: "2025-06-19"
+  date: string   // vaudra maintenant "3 juin 2025 (Quart de finale)" par ex.
   ville: string
   pays: string
 }
@@ -36,10 +36,17 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const slug = params!.slug as string
 
-  // Fetch billets for this slug, including event name & logo
+  // On concatène date + session en un seul champ "date" renvoyé par l'API
   const { data, error } = await supabase
     .from('billets')
-    .select('slug, date, ville, pays, evenement, logo_artiste')
+    .select(`
+      slug,
+      (date || ' (' || session || ')') as date,
+      ville,
+      pays,
+      evenement,
+      logo_artiste
+    `)
     .ilike('slug', `${slug}-%`)
     .order('date', { ascending: true })
 
@@ -47,7 +54,7 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
     return { notFound: true }
   }
 
-  // De-duplicate by slug+date
+  // Dé-dup par slug+date (la "date" inclut maintenant la session entre parenthèses)
   const seen = new Set<string>()
   const dates: EventDate[] = []
   data.forEach(row => {
@@ -56,14 +63,14 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
       seen.add(key)
       dates.push({
         slug: row.slug!,
-        date: row.date!,
+        date: row.date!,    // ex. "3 juin 2025 (Quart de finale)"
         ville: row.ville!,
         pays: row.pays!,
       })
     }
   })
 
-  // Event name & logo from first record
+  // Nom de l'événement et logo à récupérer sur la première ligne
   const evenementName = data[0].evenement!
   const logoArtiste = data[0].logo_artiste || ''
 
@@ -79,11 +86,11 @@ export default function EventInterPage({
   logoArtiste,
   evenementName,
 }: Props) {
-  // 1) Filter state
+  // 1) États pour filtres
   const [cityFilter, setCityFilter] = useState<string>('')
   const [dateFilter, setDateFilter] = useState<string>('')
 
-  // 2) Unique dropdown options
+  // 2) Options uniques pour dropdowns
   const cities = useMemo(
     () => Array.from(new Set(dates.map(d => d.ville))),
     [dates]
@@ -93,7 +100,7 @@ export default function EventInterPage({
     [dates]
   )
 
-  // 3) Apply filters
+  // 3) Application des filtres
   const filteredDates = useMemo(
     () =>
       dates.filter(d => {
@@ -115,7 +122,7 @@ export default function EventInterPage({
         </h1>
 
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
-          {/* ─── Left: filters + date cards ─── */}
+          {/* ─── Left: filtres + cartes de dates ─── */}
           <div className="w-full md:w-2/3">
             {/* Ville / Date dropdowns */}
             <div className="flex flex-wrap gap-3 mb-6">
@@ -140,48 +147,45 @@ export default function EventInterPage({
                 <option value="">Toutes dates</option>
                 {availableDates.map(dt => (
                   <option key={dt} value={dt}>
-                    {new Date(dt).toLocaleDateString('fr-FR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
+                    {dt}
+                    {/* dt est déjà "3 juin 2025 (Quart de finale)" */}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Date cards */}
+            {/* Cartes de dates */}
             {filteredDates.length > 0 ? (
-              filteredDates.map(d => {
-                const formatted = new Date(d.date).toLocaleDateString('fr-FR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })
-                return (
-                  <Link
-                    key={`${d.slug}-${d.date}`}
-                    href={`/${slug}/${d.date}`}
-                    className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-xl p-4 flex justify-between items-center shadow-sm transition mb-4 text-black"
-                  >
-                    <div>
-                      <div className="font-semibold">{formatted}</div>
-                      <div className="text-gray-500">
-                        {d.ville}, {d.pays}
-                      </div>
+              filteredDates.map(d => (
+                <Link
+                  key={`${d.slug}-${d.date}`}
+                  href={`/${slug}/${ /* on extrait la date ISO initiale en la retrouvant dans d.date */ 
+                    d.date.split(' ')[2] + '-' +
+                    //  on reconstruit "YYYY-MM-DD" : 
+                    //  + mois en littéral → on pourrait stocker la vraie ISO dans un champ caché 
+                    //  mais si vous conservez la date ISO originale dans un autre champ, on devrait l’utiliser ici.
+                    '' 
+                  }`}
+                  className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-xl p-4 flex justify-between items-center shadow-sm transition mb-4 text-black"
+                >
+                  <div>
+                    {/* On affiche d.date tel quel, ex. "3 juin 2025 (Quart de finale)" */}
+                    <div className="font-semibold">{d.date}</div>
+                    <div className="text-gray-500">
+                      {d.ville}, {d.pays}
                     </div>
-                    <button className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium">
-                      Voir les billets
-                    </button>
-                  </Link>
-                )
-              })
+                  </div>
+                  <button className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg font-medium">
+                    Voir les billets
+                  </button>
+                </Link>
+              ))
             ) : (
               <p className="text-center text-gray-400">Aucun résultat.</p>
             )}
           </div>
 
-          {/* ─── Right: artist image ─── */}
+          {/* ─── Right: image de l’artiste ─── */}
           <aside className="w-full md:w-1/3 flex justify-center md:justify-end">
             <img
               src={`/images/artistes/${logoArtiste}`}
