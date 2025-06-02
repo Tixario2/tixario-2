@@ -19,7 +19,7 @@ interface EventHeaderProps {
   logoUrl: string
   evenementName: string
   date: string               // ISO "YYYY-MM-DD"
-  session?: string           // Nouvelle prop facultative pour “Quart de finale journée”, “Finale”, etc.
+  session?: string           // ex. "Quart de finale journée"
   locationLabel: string
 
   // filtres billet
@@ -34,7 +34,7 @@ interface EventHeaderProps {
   search: string
   setSearch: (s: string) => void
 
-  // mini-menu d'autres événements
+  // mini-menu d’autres événements
   events: EventItem[]
 }
 
@@ -49,7 +49,7 @@ export default function EventHeader({
   logoUrl,
   evenementName,
   date,
-  session,               // ← on récupère maintenant la session (ex. "Quart de finale journée")
+  session,
   locationLabel,
   filtreQuantite,
   setFiltreQuantite,
@@ -120,8 +120,9 @@ export default function EventHeader({
     <div className="mb-8">
       {/* ─── Ligne principale ─── */}
       <div className="flex items-center justify-between mb-6">
-        {/* logo + titre + date (+ session) */}
+        {/* logo + titre (+ session) et date/localisation */}
         <div className="flex items-center gap-4">
+          {/* Logo de l'événement */}
           <div className="relative w-12 h-12">
             <Image
               src={logoUrl}
@@ -131,20 +132,21 @@ export default function EventHeader({
               className="rounded-full border border-gray-700"
             />
           </div>
+
+          {/* Texte à droite du logo */}
           <div>
-            <h1 className="text-3xl font-bold">{evenementName}</h1>
-            <p className="text-gray-300">
-              {/* Affichage de la date en français, ex. "3 juin 2025" */}
-              {format(new Date(date), 'd MMMM yyyy', { locale: fr })}
-
-              {/* Si la prop `session` est renseignée, on l’affiche entre parenthèses */}
+            {/* ─── Titre et session sur la même ligne ─── */}
+            <div className="flex items-baseline gap-4">
+              <h1 className="text-3xl font-bold">{evenementName}</h1>
               {session && (
-                <>
-                  &nbsp;(<span className="font-medium">{session}</span>)  
-                </>
+                <span className="text-xl font-medium text-gray-300">
+                  {session}
+                </span>
               )}
-
-              &nbsp;·&nbsp;
+            </div>
+            {/* ─── Date + icône lieu + localisation en dessous ─── */}
+            <p className="text-gray-400 mt-1">
+              {format(new Date(date), 'd MMMM yyyy', { locale: fr })} &nbsp;·&nbsp;
               <span className="align-text-bottom">📍</span> {locationLabel}
             </p>
           </div>
@@ -165,7 +167,7 @@ export default function EventHeader({
             )}
           </div>
 
-          {/* mini-search d’événements */}
+          {/* mini-search d'événements */}
           <div ref={containerRef} className="relative w-64">
             <input
               type="text"
