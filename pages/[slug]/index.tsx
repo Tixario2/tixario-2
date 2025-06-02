@@ -8,7 +8,8 @@ import { useState, useMemo } from 'react'
 
 interface EventDate {
   slug: string
-  date: string   // vaudra maintenant "3 juin 2025 (Quart de finale)" par ex.
+  dateIso: string    // Date brute au format ISO (“2025-06-03”)
+  date: string       // Date formatée avec session, ex. “3 juin 2025 (Quart de finale journée)”
   ville: string
   pays: string
 }
@@ -36,17 +37,10 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const slug = params!.slug as string
 
-  // On concatène date + session en un seul champ "date" renvoyé par l'API
+  // 1) Récupérer date ISO + session + autres champs
   const { data, error } = await supabase
     .from('billets')
-    .select(`
-      slug,
-      (date || ' (' || session || ')') as date,
-      ville,
-      pays,
-      evenement,
-      logo_artiste
-    `)
+    .select('slug, date, session, ville, pays, evenement, logo_artiste')
     .ilike('slug', `${slug}-%`)
     .order('date', { ascending: true })
 
@@ -54,23 +48,39 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
     return { notFound: true }
   }
 
-  // Dé-dup par slug+date (la "date" inclut maintenant la session entre parenthèses)
+  // 2) Dé-dup par slug+dateIso
   const seen = new Set<string>()
   const dates: EventDate[] = []
   data.forEach(row => {
-    const key = `${row.slug}-${row.date}`
+    const dateIso = row.date!                             // ex. "2025-06-03"
+    const session = row.session || ''                      // ex. "Quart de finale journée"
+    const key = `${row.slug}-${dateIso}`
     if (!seen.has(key)) {
       seen.add(key)
+
+      // a) formater la date ISO en "3 juin 2025"
+      const formattedDate = new Date(dateIso).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+
+      // b) concaténer avec la session si présente
+      const dateWithSession = session
+        ? `${formattedDate} (${session})`
+        : formattedDate
+
       dates.push({
         slug: row.slug!,
-        date: row.date!,    // ex. "3 juin 2025 (Quart de finale)"
+        dateIso,                  // POUR L’URL
+        date: dateWithSession,    // POUR L’AFFICHAGE
         ville: row.ville!,
         pays: row.pays!,
       })
     }
   })
 
-  // Nom de l'événement et logo à récupérer sur la première ligne
+  // 3) Récupérer le nom de l’événement & le logo à partir du premier enregistrement
   const evenementName = data[0].evenement!
   const logoArtiste = data[0].logo_artiste || ''
 
@@ -90,7 +100,7 @@ export default function EventInterPage({
   const [cityFilter, setCityFilter] = useState<string>('')
   const [dateFilter, setDateFilter] = useState<string>('')
 
-  // 2) Options uniques pour dropdowns
+  // 2) Calculer les options uniques pour les dropdowns
   const cities = useMemo(
     () => Array.from(new Set(dates.map(d => d.ville))),
     [dates]
@@ -100,7 +110,7 @@ export default function EventInterPage({
     [dates]
   )
 
-  // 3) Application des filtres
+  // 3) Filtrer selon ville et date affichée
   const filteredDates = useMemo(
     () =>
       dates.filter(d => {
@@ -148,7 +158,7 @@ export default function EventInterPage({
                 {availableDates.map(dt => (
                   <option key={dt} value={dt}>
                     {dt}
-                    {/* dt est déjà "3 juin 2025 (Quart de finale)" */}
+                    {/* dt est par exemple "3 juin 2025 (Quart de finale journée)" */}
                   </option>
                 ))}
               </select>
@@ -158,18 +168,11 @@ export default function EventInterPage({
             {filteredDates.length > 0 ? (
               filteredDates.map(d => (
                 <Link
-                  key={`${d.slug}-${d.date}`}
-                  href={`/${slug}/${ /* on extrait la date ISO initiale en la retrouvant dans d.date */ 
-                    d.date.split(' ')[2] + '-' +
-                    //  on reconstruit "YYYY-MM-DD" : 
-                    //  + mois en littéral → on pourrait stocker la vraie ISO dans un champ caché 
-                    //  mais si vous conservez la date ISO originale dans un autre champ, on devrait l’utiliser ici.
-                    '' 
-                  }`}
+                  key={`${d.slug}-${d.dateIso}`}
+                  href={`/${slug}/${d.dateIso}`}
                   className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-xl p-4 flex justify-between items-center shadow-sm transition mb-4 text-black"
                 >
                   <div>
-                    {/* On affiche d.date tel quel, ex. "3 juin 2025 (Quart de finale)" */}
                     <div className="font-semibold">{d.date}</div>
                     <div className="text-gray-500">
                       {d.ville}, {d.pays}
@@ -198,5 +201,6 @@ export default function EventInterPage({
     </>
   )
 }
+
 
 
