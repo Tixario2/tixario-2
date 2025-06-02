@@ -19,6 +19,7 @@ interface EventHeaderProps {
   logoUrl: string
   evenementName: string
   date: string               // ISO "YYYY-MM-DD"
+  session?: string           // Nouvelle prop facultative pour “Quart de finale journée”, “Finale”, etc.
   locationLabel: string
 
   // filtres billet
@@ -33,7 +34,7 @@ interface EventHeaderProps {
   search: string
   setSearch: (s: string) => void
 
-  // CORRECTION : ajoute events ici !
+  // mini-menu d'autres événements
   events: EventItem[]
 }
 
@@ -48,6 +49,7 @@ export default function EventHeader({
   logoUrl,
   evenementName,
   date,
+  session,               // ← on récupère maintenant la session (ex. "Quart de finale journée")
   locationLabel,
   filtreQuantite,
   setFiltreQuantite,
@@ -57,7 +59,7 @@ export default function EventHeader({
   setFiltreCategorie,
   search,
   setSearch,
-  events, // <-- correction ici aussi
+  events,
 }: EventHeaderProps) {
   const router = useRouter()
   const { cart = [] } = useCart() as { cart: Array<{ quantite: number }> }
@@ -66,7 +68,7 @@ export default function EventHeader({
   const [showDropdown, setShowDropdown] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Fetch + assemble events list
+  // Fetch + assembler la liste d’événements pour la mini‐search
   const [eventsList, setEventsList] = useState<EventItem[]>([])
   useEffect(() => {
     const fetchMenu = async () => {
@@ -118,7 +120,7 @@ export default function EventHeader({
     <div className="mb-8">
       {/* ─── Ligne principale ─── */}
       <div className="flex items-center justify-between mb-6">
-        {/* logo + titre */}
+        {/* logo + titre + date (+ session) */}
         <div className="flex items-center gap-4">
           <div className="relative w-12 h-12">
             <Image
@@ -132,8 +134,18 @@ export default function EventHeader({
           <div>
             <h1 className="text-3xl font-bold">{evenementName}</h1>
             <p className="text-gray-300">
+              {/* Affichage de la date en français, ex. "3 juin 2025" */}
               {format(new Date(date), 'd MMMM yyyy', { locale: fr })}
-              &nbsp;·&nbsp;<span className="align-text-bottom">📍</span> {locationLabel}
+
+              {/* Si la prop `session` est renseignée, on l’affiche entre parenthèses */}
+              {session && (
+                <>
+                  &nbsp;(<span className="font-medium">{session}</span>)  
+                </>
+              )}
+
+              &nbsp;·&nbsp;
+              <span className="align-text-bottom">📍</span> {locationLabel}
             </p>
           </div>
         </div>
@@ -153,7 +165,7 @@ export default function EventHeader({
             )}
           </div>
 
-          {/* mini-search */}
+          {/* mini-search d’événements */}
           <div ref={containerRef} className="relative w-64">
             <input
               type="text"
@@ -199,7 +211,7 @@ export default function EventHeader({
         </div>
       </div>
 
-      {/* ─── Toolbar filtres ─── */}
+      {/* ─── Barre d’outils des filtres ─── */}
       <div className="flex flex-wrap items-center gap-4">
         <select
           value={filtreQuantite}
