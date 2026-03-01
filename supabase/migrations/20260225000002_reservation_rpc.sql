@@ -28,7 +28,7 @@
 CREATE OR REPLACE FUNCTION create_reservation(
   p_user_id     uuid    DEFAULT NULL,
   p_items       jsonb   DEFAULT '[]'::jsonb,
-  p_ttl_minutes integer DEFAULT 5
+  p_ttl_minutes integer DEFAULT 10
 )
 RETURNS uuid
 LANGUAGE plpgsql
