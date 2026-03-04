@@ -4,7 +4,7 @@ import getRawBody from 'raw-body'
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
 
-// — Client Supabase “serveur”
+// — Client Supabase "serveur"
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -68,86 +68,144 @@ export default async function handler(
     return res.status(400).json({ received: false, error: err.message })
   }
 
-  // On ne traite que checkout.session.completed
-  if (event.type !== 'checkout.session.completed') {
+  // 3) Idempotency check — skip if already processed
+  const { data: existingAudit } = await supabase
+    .from('audit_log')
+    .select('id')
+    .eq('action', 'WEBHOOK_PROCESSED')
+    .eq('record_id', event.id)
+    .maybeSingle()
+
+  if (existingAudit) {
+    console.log('⚠️ Event déjà traité, ignoré:', event.id)
+    return res.status(200).json({ received: true })
+  }
+
+  // 4) Only handle checkout.session.completed and checkout.session.expired
+  if (
+    event.type !== 'checkout.session.completed' &&
+    event.type !== 'checkout.session.expired'
+  ) {
     console.log('⚠️ Event non géré:', event.type)
     return res.status(200).json({ received: true })
   }
 
-  // 3) Extraire la session
   const session = event.data.object as Stripe.Checkout.Session
-  console.log('✉️ session.customer_email   =', session.customer_email)
-  console.log('✉️ session.customer_details =', session.customer_details)
-  console.log('✉️ session.customer         =', session.customer)
 
-  // 4) Récupération robuste de l'email client
-  let emailClient: string | null = null
-  if (session.customer_email) {
-    emailClient = session.customer_email
-  } else if (session.customer_details?.email) {
-    emailClient = session.customer_details.email
-  } else if (typeof session.customer === 'string') {
-    const cust = await stripe.customers.retrieve(session.customer)
-    if (!Array.isArray(cust) && !(cust as any).deleted) {
-      emailClient = (cust as Stripe.Customer).email ?? null
+  // ─────────────────────────────────────────────────────────────
+  // checkout.session.expired — cancel the reservation
+  // ─────────────────────────────────────────────────────────────
+  if (event.type === 'checkout.session.expired') {
+    const reservationId = session.metadata?.reservation_id
+    if (reservationId) {
+      const { error: cancelErr } = await supabase
+        .from('reservations')
+        .update({ status: 'CANCELED' })
+        .eq('id', reservationId)
+        .eq('status', 'PENDING')
+      if (cancelErr) console.error('❌ Erreur annulation réservation:', JSON.stringify(cancelErr))
+      else console.log('✅ Réservation annulée:', reservationId)
     }
+
+    await supabase.from('audit_log').insert({
+      table_name: 'reservations',
+      record_id: event.id,
+      action: 'WEBHOOK_PROCESSED',
+      new_data: { event_type: event.type, reservation_id: reservationId ?? null },
+    })
+
+    return res.status(200).json({ received: true })
   }
-  console.log('✉️ emailClient final       =', emailClient)
+
+  // ─────────────────────────────────────────────────────────────
+  // checkout.session.completed — finalize the reservation
+  // ─────────────────────────────────────────────────────────────
+
+  const reservationId = session.metadata?.reservation_id
+  if (!reservationId) {
+    console.log('⚠️ Pas de reservation_id dans session.metadata, ignoré')
+    return res.status(200).json({ received: true })
+  }
+
+  // Atomically transition reservation PENDING → CAPTURED
+  const { data: capturedRows, error: captureErr } = await supabase
+    .from('reservations')
+    .update({ status: 'CAPTURED' })
+    .eq('id', reservationId)
+    .eq('status', 'PENDING')
+    .select('id')
+
+  if (captureErr) {
+    console.error('❌ Erreur capture réservation:', JSON.stringify(captureErr))
+  }
+
+  if (!capturedRows || capturedRows.length === 0) {
+    console.log('⚠️ Réservation déjà capturée ou expirée, ignoré:', reservationId)
+    return res.status(200).json({ received: true })
+  }
+
+  console.log('✅ Réservation capturée:', reservationId)
+  console.log('🔍 Starting order creation for reservation:', reservationId)
 
   try {
-    // 5) Récupérer les line items
-    const lineItems = await stripe.checkout.sessions.listLineItems(
-      session.id,
-      { limit: 100 }
-    )
-    console.log('🛒 lineItems count =', lineItems.data.length)
+    // Récupération robuste de l'email client
+    console.log('✉️ session.customer_email   =', session.customer_email)
+    console.log('✉️ session.customer_details =', session.customer_details)
+    console.log('✉️ session.customer         =', session.customer)
 
-    // 6) Décrémentation du stock
-    const billetIds: string[] = []
-    for (const item of lineItems.data) {
-      const desc = item.description || ''
-      const match = desc.match(/\[ID:(.+?)\]/)
-      const billetId = match?.[1]
-      const qty = item.quantity ?? 1
-      if (billetId) {
-        billetIds.push(billetId)
-        console.log('🔽 Décrémentation billet', billetId, 'par', qty)
-        const { data: cur, error: fetchErr } = await supabase
-          .from('billets')
-          .select('quantite')
-          .eq('id_billet', billetId)
-          .single()
-        if (fetchErr) {
-          console.error('❌ Erreur fetch stock:', JSON.stringify(fetchErr))
-        } else {
-          const newQty = Math.max((cur.quantite || 0) - qty, 0)
-          const { error: updErr } = await supabase
-            .from('billets')
-            .update({ quantite: newQty })
-            .eq('id_billet', billetId)
-          if (updErr) console.error('❌ Erreur update stock:', JSON.stringify(updErr))
-          else console.log('✅ Stock mis à jour', billetId, '→', newQty)
-        }
+    let emailClient: string | null = null
+    if (session.customer_email) {
+      emailClient = session.customer_email
+    } else if (session.customer_details?.email) {
+      emailClient = session.customer_details.email
+    } else if (typeof session.customer === 'string') {
+      const cust = await stripe.customers.retrieve(session.customer)
+      if (!Array.isArray(cust) && !(cust as any).deleted) {
+        emailClient = (cust as Stripe.Customer).email ?? null
       }
     }
+    console.log('✉️ emailClient final       =', emailClient)
 
-    // 7) Préparer données commande
-    const billetsInfos: BilletInfo[] = lineItems.data.map(item => {
-      const desc = item.description || ''
-      const [evPart, catPart] = desc.split('–').map(s => s.trim())
+    // Fetch reservation_items joined to billets
+    const { data: reservationItems, error: itemsErr } = await supabase
+      .from('reservation_items')
+      .select(`
+        quantity,
+        unit_price,
+        billet_id,
+        billets (
+          evenement,
+          categorie
+        )
+      `)
+      .eq('reservation_id', reservationId)
+
+    if (itemsErr || !reservationItems || reservationItems.length === 0) {
+      console.error('❌ Erreur fetch reservation_items:', JSON.stringify(itemsErr))
+      throw new Error('Failed to fetch reservation items')
+    }
+
+    // Build billetsInfos from reservation data
+    const billetsInfos: BilletInfo[] = reservationItems.map((item: any) => {
+      if (!item.billets || typeof item.billets !== 'object' || Array.isArray(item.billets)) {
+        throw new Error('Invalid billets join result for billet_id: ' + item.billet_id)
+      }
+      const billets = item.billets
+      const unitPrice = parseFloat(item.unit_price)
       return {
-        description: evPart,
-        quantite: item.quantity ?? 1,
-        montant_total: (item.amount_total ?? 0) / 100,
-        prix_unitaire: ((item.amount_subtotal ?? 0) / (item.quantity ?? 1)) / 100,
-        evenement: evPart,
-        categorie: catPart?.split('[')[0].trim() || ''
+        description: billets.evenement,
+        quantite: item.quantity,
+        montant_total: unitPrice * item.quantity,
+        prix_unitaire: unitPrice,
+        evenement: billets.evenement,
+        categorie: billets.categorie,
       }
     })
     const totalQty = billetsInfos.reduce((a, b) => a + b.quantite, 0)
     const totalPrice = (session.amount_total ?? 0) / 100
+    const billetIds = reservationItems.map((item: any) => item.billet_id)
 
-    // 8) Insertion de la commande
+    // Insertion de la commande
     const { data: cmdData, error: cmdErr } = await supabase
       .from('commandes')
       .insert({
@@ -160,27 +218,38 @@ export default async function handler(
         date_evenement: session.metadata?.date_evenement || null,
         evenement: billetsInfos[0]?.evenement || null,
         id_billets: billetIds,
-        date_creation: new Date().toISOString()
+        date_creation: new Date().toISOString(),
       })
       .select('id')
       .single()
-    if (cmdErr) console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
-    else console.log('🆔 Commande insérée, id =', cmdData?.id)
+    if (cmdErr) {
+      console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
+      throw new Error('Failed to insert commande: ' + cmdErr.message)
+    }
+    console.log('🆔 Commande insérée, id =', cmdData?.id)
 
-    // 9) Inscription en newsletter
+    // Audit log — WEBHOOK_PROCESSED (only after successful order creation)
+    await supabase.from('audit_log').insert({
+      table_name: 'reservations',
+      record_id: event.id,
+      action: 'WEBHOOK_PROCESSED',
+      new_data: { event_type: event.type, reservation_id: reservationId, commande_id: cmdData?.id ?? null },
+    })
+
+    // Inscription en newsletter
     if (cmdData?.id && emailClient) {
       const { error: newsErr } = await supabase
         .from('newsletter')
         .insert({
           email: emailClient,
           source: 'commande',
-          date_inscription: new Date().toISOString()
+          date_inscription: new Date().toISOString(),
         })
       if (newsErr) console.error('❌ Erreur insert newsletter:', JSON.stringify(newsErr))
       else console.log('📬 Inscription newsletter réussie')
     }
 
-    // 10) Envoi email de confirmation via Resend
+    // Envoi email de confirmation via Resend
     if (cmdData?.id && emailClient) {
       console.log('📧 Envoi email confirmation à:', emailClient)
       try {
@@ -221,13 +290,9 @@ export default async function handler(
     }
 
   } catch (err: any) {
-    console.error('❌ Erreur lors du traitement webhook:', err)
+    console.error('❌ Erreur lors du traitement webhook:', err.message, err.stack)
   }
 
-  // 11) Réponse à Stripe
+  // Réponse à Stripe
   res.status(200).json({ received: true })
 }
-
-
-
-

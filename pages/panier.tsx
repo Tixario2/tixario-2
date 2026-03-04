@@ -26,7 +26,7 @@ export default function PanierPage() {
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cartItems: cart }),
+      body: JSON.stringify({ items: cart.map(i => ({ billet_id: i.id_billet, quantity: i.quantite })) }),
     });
     const data = await res.json();
     if (data?.url) {
