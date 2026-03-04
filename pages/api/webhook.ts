@@ -254,7 +254,7 @@ export default async function handler(
       console.log('📧 Envoi email confirmation à:', emailClient)
       try {
         const result = await resend.emails.send({
-          from: 'contact@tixario.com',
+          from: 'contact@mail.zenntry.com',
           to: emailClient,
           subject: 'Confirmation de votre commande – Tixario',
           html: `
