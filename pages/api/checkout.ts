@@ -102,9 +102,13 @@ export default async function handler(
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_intent_data: {
-        request_three_d_secure: 'any',
         metadata: {
           reservation_id: reservationId,
+        },
+      },
+      payment_method_options: {
+        card: {
+          request_three_d_secure: 'any',
         },
       },
       line_items,
