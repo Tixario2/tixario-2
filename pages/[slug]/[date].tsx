@@ -287,7 +287,7 @@ export default function EventDatePage({
                               fetch('/api/checkout', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
+                                body: JSON.stringify({ items: [{ billet_id: billet.id_billet, quantity: qty }] }),
                               })
                                 .then(r => r.json())
                                 .then(data => {
@@ -479,7 +479,7 @@ export default function EventDatePage({
                               fetch('/api/checkout', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ cartItems: [{ ...billet, quantite: qty }] }),
+                                body: JSON.stringify({ items: [{ billet_id: billet.id_billet, quantity: qty }] }),
                               })
                                 .then(r => r.json())
                                 .then(data => {
