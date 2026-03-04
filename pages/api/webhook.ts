@@ -128,23 +128,24 @@ export default async function handler(
   }
 
   // Atomically transition reservation PENDING → CAPTURED
-  const { count: capturedCount, error: captureErr } = await supabase
+  const { data: capturedRows, error: captureErr } = await supabase
     .from('reservations')
     .update({ status: 'CAPTURED' })
     .eq('id', reservationId)
     .eq('status', 'PENDING')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
 
   if (captureErr) {
     console.error('❌ Erreur capture réservation:', JSON.stringify(captureErr))
   }
 
-  if (!capturedCount || capturedCount === 0) {
+  if (!capturedRows || capturedRows.length === 0) {
     console.log('⚠️ Réservation déjà capturée ou expirée, ignoré:', reservationId)
     return res.status(200).json({ received: true })
   }
 
   console.log('✅ Réservation capturée:', reservationId)
+  console.log('🔍 Starting order creation for reservation:', reservationId)
 
   try {
     // Récupération robuste de l'email client
@@ -289,7 +290,7 @@ export default async function handler(
     }
 
   } catch (err: any) {
-    console.error('❌ Erreur lors du traitement webhook:', err)
+    console.error('❌ Erreur lors du traitement webhook:', err.message, err.stack)
   }
 
   // Réponse à Stripe
