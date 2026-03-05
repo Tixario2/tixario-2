@@ -27,6 +27,8 @@ interface BilletInfo {
   prix_unitaire: number
   evenement: string
   categorie: string
+  date: string | null
+  cout_unitaire: number
 }
 
 export default async function handler(
@@ -175,7 +177,9 @@ export default async function handler(
         billet_id,
         billets (
           evenement,
-          categorie
+          categorie,
+          date,
+          cout_unitaire
         )
       `)
       .eq('reservation_id', reservationId)
@@ -199,6 +203,8 @@ export default async function handler(
         prix_unitaire: unitPrice,
         evenement: billets.evenement,
         categorie: billets.categorie,
+        date: billets.date ?? null,
+        cout_unitaire: billets.cout_unitaire ?? 0,
       }
     })
     const totalQty = billetsInfos.reduce((a, b) => a + b.quantite, 0)
@@ -227,6 +233,109 @@ export default async function handler(
       throw new Error('Failed to insert commande: ' + cmdErr.message)
     }
     console.log('🆔 Commande insérée, id =', cmdData?.id)
+
+    // Set owner_id on the commande + fetch sourcing_required from the first billet
+    const firstBilletId = reservationItems[0]?.billet_id
+    let ownerId: string | null = null
+    let sourcingRequired = false
+    if (firstBilletId) {
+      const { data: billetData } = await supabase
+        .from('billets')
+        .select('owner_id, sourcing_required')
+        .eq('id_billet', firstBilletId)
+        .single()
+      ownerId = billetData?.owner_id ?? null
+      sourcingRequired = billetData?.sourcing_required ?? false
+    }
+
+    if (ownerId && cmdData?.id) {
+      const update: Record<string, any> = { owner_id: ownerId }
+      if (sourcingRequired) update.statut_expedition = 'needs_sourcing'
+      const { error: ownerErr } = await supabase
+        .from('commandes')
+        .update(update)
+        .eq('id', cmdData.id)
+      if (ownerErr) console.error('❌ Erreur set owner_id/statut commande:', JSON.stringify(ownerErr))
+      else console.log('✅ owner_id set on commande:', ownerId, '| sourcing_required:', sourcingRequired)
+    }
+
+    // Send owner notification email (sourcing alert or simple sale notification)
+    if (ownerId) {
+      const { data: { user: ownerUser } } = await supabase.auth.admin.getUserById(ownerId)
+      const ownerEmail = ownerUser?.email ?? null
+      const eventName = billetsInfos[0]?.evenement ?? '—'
+
+      const billetDate = billetsInfos[0]?.date ?? null
+      const billetCategory = billetsInfos[0]?.categorie ?? null
+      const nomClient = session.customer_details?.name ?? null
+      const totalCost = billetsInfos.reduce((a, b) => a + (b.cout_unitaire * b.quantite), 0)
+      const profit = totalPrice - totalCost
+      const roi = totalCost > 0 ? ((profit / totalCost) * 100).toFixed(1) : '—'
+      const profitColor = profit >= 0 ? '#1a7a3a' : '#c53030'
+
+      if (ownerEmail) {
+        try {
+          const orderTable = `
+            <table style="width:100%; border-collapse:collapse; font-size:15px; margin: 20px 0;">
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666; width:160px;">Event</td><td style="padding:10px 0;"><strong>${eventName}</strong></td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Event date</td><td style="padding:10px 0;">${billetDate ?? '—'}</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Category / Seats</td><td style="padding:10px 0;">${billetCategory ?? '—'}</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Quantity</td><td style="padding:10px 0;">${totalQty}</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Customer</td><td style="padding:10px 0;">${nomClient ?? '—'}</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Customer email</td><td style="padding:10px 0;">${emailClient ?? '—'}</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Amount</td><td style="padding:10px 0;"><strong>${totalPrice.toFixed(2)} €</strong></td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Cost</td><td style="padding:10px 0;">${totalCost.toFixed(2)} €</td></tr>
+              <tr style="border-bottom:1px solid #eee;"><td style="padding:10px 0; color:#666;">Profit</td><td style="padding:10px 0; color:${profitColor};"><strong>${profit.toFixed(2)} €</strong></td></tr>
+              <tr><td style="padding:10px 0; color:#666;">ROI</td><td style="padding:10px 0; color:${profitColor};">${roi === '—' ? '—' : roi + '%'}</td></tr>
+            </table>
+          `
+          const ctaButton = `<a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/fulfillment" style="background:#1a3a2a; color:#fff; padding:12px 24px; border-radius:6px; text-decoration:none; display:inline-block; font-size:15px;">Open Fulfillment Dashboard</a>`
+
+          if (sourcingRequired) {
+            // Sourcing alert — owner must source and send tickets
+            await resend.emails.send({
+              from: 'contact@mail.zenntry.com',
+              to: ownerEmail,
+              subject: '🎟 New order — action required',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; color: #111; padding: 24px;">
+                  <div style="margin-bottom: 20px;">
+                    <img src="${process.env.NEXT_PUBLIC_SITE_URL}/logo.png" height="32" style="margin-bottom: 16px;" />
+                    <h2 style="margin: 0; font-size: 20px;">New Order — Action Required</h2>
+                    <p style="color: #666; margin: 4px 0 0;">Invoice #${cmdData?.id}</p>
+                  </div>
+                  ${orderTable}
+                  <p style="color: #c53030; font-weight: bold; margin-bottom: 16px;">⚡ This ticket needs to be sourced and sent to the customer as soon as possible.</p>
+                  ${ctaButton}
+                </div>
+              `,
+            })
+            console.log('📧 Sourcing alert envoyé à owner:', ownerEmail)
+          } else {
+            // Sale notification — tickets already in hand
+            await resend.emails.send({
+              from: 'contact@mail.zenntry.com',
+              to: ownerEmail,
+              subject: `🎟 New sale — ${eventName}`,
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; color: #111; padding: 24px;">
+                  <div style="margin-bottom: 20px;">
+                    <img src="${process.env.NEXT_PUBLIC_SITE_URL}/logo.png" height="32" style="margin-bottom: 16px;" />
+                    <h2 style="margin: 0; font-size: 20px;">New Sale — ${eventName}</h2>
+                    <p style="color: #666; margin: 4px 0 0;">Invoice #${cmdData?.id}</p>
+                  </div>
+                  ${orderTable}
+                  ${ctaButton}
+                </div>
+              `,
+            })
+            console.log('📧 Sale notification envoyée à owner:', ownerEmail)
+          }
+        } catch (err) {
+          console.error('❌ Erreur envoi owner email:', err)
+        }
+      }
+    }
 
     // Audit log — WEBHOOK_PROCESSED (only after successful order creation)
     await supabase.from('audit_log').insert({
