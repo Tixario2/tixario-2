@@ -2,17 +2,15 @@
 import type { GetServerSideProps } from 'next'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { getAuthUser, LOGIN_REDIRECT } from '@/lib/authGuard'
 
 interface Props {
   userName: string | null
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req }) => {
-  const token = req.cookies['sb-access-token']
-  if (!token) return { redirect: { destination: '/dashboard/login', permanent: false } }
-
-  const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-  if (authError || !user) return { redirect: { destination: '/dashboard/login', permanent: false } }
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const user = await getAuthUser(ctx)
+  if (!user) return LOGIN_REDIRECT
 
   const { data: profile } = await supabaseServer
     .from('profiles')

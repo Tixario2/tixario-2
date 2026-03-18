@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { GetServerSideProps } from 'next'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { getAuthUser, LOGIN_REDIRECT } from '@/lib/authGuard'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
@@ -33,12 +34,9 @@ interface Props {
   orders: Order[]
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req }) => {
-  const token = req.cookies['sb-access-token']
-  if (!token) return { redirect: { destination: '/dashboard/login', permanent: false } }
-
-  const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-  if (authError || !user) return { redirect: { destination: '/dashboard/login', permanent: false } }
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const user = await getAuthUser(ctx)
+  if (!user) return LOGIN_REDIRECT
 
   const { data: profile } = await supabaseServer
     .from('profiles')
@@ -60,13 +58,40 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   }
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  needs_sourcing: 'Needs sourcing',
+  sourced: 'Sourced',
+  waiting_for_transfer: 'Waiting for transfer',
+  sent: 'Sent',
+  complete: 'Complete',
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  needs_sourcing:       'bg-red-100 text-red-700',
+  sourced:              'bg-emerald-100 text-emerald-700',
+  waiting_for_transfer: 'bg-amber-100 text-amber-700',
+  sent:                 'bg-emerald-200 text-emerald-800',
+  complete:             'bg-green-200 text-green-800',
+}
+
+const STATUS_STRIPE: Record<string, string> = {
+  needs_sourcing:       'bg-red-500',
+  sourced:              'bg-emerald-400',
+  waiting_for_transfer: 'bg-amber-400',
+  sent:                 'bg-emerald-600',
+  complete:             'bg-green-700',
+}
+
 function statusBadge(status: string | null) {
-  const s = status ?? 'En attente'
-  const color =
-    s === 'Expédié' ? 'bg-green-100 text-green-700' :
-    s === 'En attente' ? 'bg-yellow-100 text-yellow-700' :
-    'bg-gray-100 text-gray-600'
-  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{s}</span>
+  const key = status ?? 'needs_sourcing'
+  const label = STATUS_LABELS[key] ?? key
+  const color = STATUS_BADGE[key] ?? 'bg-gray-100 text-gray-600'
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{label}</span>
+}
+
+function statusStripeColor(status: string | null): string {
+  const key = status ?? 'needs_sourcing'
+  return STATUS_STRIPE[key] ?? 'bg-gray-300'
 }
 
 export default function OrdersPage({ userName, orders }: Props) {
@@ -117,6 +142,7 @@ export default function OrdersPage({ userName, orders }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="w-1 p-0" />
                 <th className="w-8 px-4 py-3" />
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Event</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</th>
@@ -129,7 +155,7 @@ export default function OrdersPage({ userName, orders }: Props) {
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No orders yet.</td>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-400">No orders yet.</td>
                 </tr>
               ) : (
                 sorted.map(order => {
@@ -141,6 +167,9 @@ export default function OrdersPage({ userName, orders }: Props) {
                         onClick={() => toggle(order.id)}
                         className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                       >
+                        <td className="w-1 p-0">
+                          <div className={`w-1 h-full min-h-[48px] ${statusStripeColor(order.statut_expedition)}`} />
+                        </td>
                         <td className="px-4 py-3 text-gray-400">
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </td>
@@ -161,6 +190,9 @@ export default function OrdersPage({ userName, orders }: Props) {
 
                       {expanded && (
                         <tr key={`${order.id}-expanded`} className="border-b border-gray-100 bg-gray-50">
+                          <td className="w-1 p-0">
+                            <div className={`w-1 h-full min-h-[48px] ${statusStripeColor(order.statut_expedition)}`} />
+                          </td>
                           <td colSpan={7} className="px-8 py-4">
                             <div className="grid grid-cols-2 gap-6 text-sm">
                               <div>

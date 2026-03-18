@@ -9,6 +9,13 @@ import {
   Boxes,
   CreditCard,
   LogOut,
+  MessageSquare,
+  PlusCircle,
+  Pencil,
+  ListPlus,
+  CalendarDays,
+  FileText,
+  Settings,
 } from 'lucide-react'
 
 const supabase = createClient(
@@ -17,11 +24,18 @@ const supabase = createClient(
 )
 
 const NAV_ITEMS = [
-  { label: 'Dashboard',    href: '/dashboard',             icon: LayoutDashboard },
-  { label: 'Orders',       href: '/dashboard/orders',      icon: ShoppingBag },
-  { label: 'Fulfillment',  href: '/dashboard/fulfillment', icon: PackageCheck },
-  { label: 'Inventory',    href: '/dashboard/inventory',   icon: Boxes },
-  { label: 'Purchases',    href: '/dashboard/purchases',   icon: CreditCard },
+  { label: 'Dashboard',    href: '/dashboard',              icon: LayoutDashboard },
+  { label: 'Orders',       href: '/dashboard/orders',       icon: ShoppingBag },
+  { label: 'Fulfillment',  href: '/dashboard/fulfillment',  icon: PackageCheck },
+  { label: 'Events',       href: '/dashboard/events',       icon: CalendarDays },
+  { label: 'Drafts',       href: '/dashboard/drafts',       icon: FileText },
+  { label: 'Demandes',     href: '/dashboard/demandes',     icon: MessageSquare },
+  { label: 'Inventory',    href: '/dashboard/inventory',    icon: Boxes },
+  { label: 'Purchases',    href: '/dashboard/purchases',    icon: CreditCard },
+  { label: 'Settings',     href: '/dashboard/settings',     icon: Settings },
+  { label: 'Add Event',    href: '/admin/new-event',        icon: PlusCircle },
+  { label: 'Edit Event',   href: '/admin/edit-event',       icon: Pencil },
+  { label: 'Add Listings', href: '/admin/add-listings',     icon: ListPlus },
 ]
 
 interface Props {
@@ -34,7 +48,8 @@ export default function DashboardLayout({ children, userName }: Props) {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    document.cookie = 'sb-access-token=; path=/; max-age=0'
+    // Clear HttpOnly cookies via API route
+    await fetch('/api/auth/clear-session', { method: 'POST' })
     router.push('/dashboard/login')
   }
 
@@ -50,7 +65,7 @@ export default function DashboardLayout({ children, userName }: Props) {
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-1">
           {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
-            const active = router.pathname === href
+            const active = router.pathname === href || (href !== '/dashboard' && router.pathname.startsWith(href + '/'))
             return (
               <Link
                 key={href}

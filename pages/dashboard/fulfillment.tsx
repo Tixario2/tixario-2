@@ -3,10 +3,11 @@ import { useState } from 'react'
 import type { GetServerSideProps } from 'next'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { supabaseServer } from '@/lib/supabaseServer'
+import { getAuthUser, LOGIN_REDIRECT } from '@/lib/authGuard'
 import { format } from 'date-fns'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
-type FulfillmentStatus = 'needs_sourcing' | 'sourced' | 'sent' | 'complete' | null
+type FulfillmentStatus = 'needs_sourcing' | 'sourced' | 'waiting_for_transfer' | 'sent' | 'complete' | null
 
 interface Order {
   id: string
@@ -26,12 +27,9 @@ interface Props {
   orders: Order[]
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req }) => {
-  const token = req.cookies['sb-access-token']
-  if (!token) return { redirect: { destination: '/dashboard/login', permanent: false } }
-
-  const { data: { user }, error: authError } = await supabaseServer.auth.getUser(token)
-  if (authError || !user) return { redirect: { destination: '/dashboard/login', permanent: false } }
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const user = await getAuthUser(ctx)
+  if (!user) return LOGIN_REDIRECT
 
   const { data: profile } = await supabaseServer
     .from('profiles')
@@ -53,43 +51,67 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   }
 }
 
-const STATUS_OPTIONS: FulfillmentStatus[] = ['needs_sourcing', 'sourced', 'sent', 'complete']
+const STATUS_OPTIONS: FulfillmentStatus[] = ['needs_sourcing', 'sourced', 'waiting_for_transfer', 'sent', 'complete']
 
 const STATUS_LABELS: Record<string, string> = {
   needs_sourcing: 'Needs sourcing',
   sourced: 'Sourced',
+  waiting_for_transfer: 'Waiting for transfer',
   sent: 'Sent',
   complete: 'Complete',
 }
 
+const STATUS_BADGE: Record<string, string> = {
+  needs_sourcing:       'bg-red-100 text-red-700',
+  sourced:              'bg-emerald-100 text-emerald-700',
+  waiting_for_transfer: 'bg-amber-100 text-amber-700',
+  sent:                 'bg-emerald-200 text-emerald-800',
+  complete:             'bg-green-200 text-green-800',
+}
+
+const STATUS_STRIPE: Record<string, string> = {
+  needs_sourcing:       'bg-red-500',
+  sourced:              'bg-emerald-400',
+  waiting_for_transfer: 'bg-amber-400',
+  sent:                 'bg-emerald-600',
+  complete:             'bg-green-700',
+}
+
 function statusBadge(status: FulfillmentStatus) {
   const s = status ?? 'needs_sourcing'
-  const styles: Record<string, string> = {
-    needs_sourcing: 'bg-red-100 text-red-700',
-    sourced:        'bg-blue-100 text-blue-700',
-    sent:           'bg-purple-100 text-purple-700',
-    complete:       'bg-green-100 text-green-700',
-  }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[s] ?? 'bg-gray-100 text-gray-600'}`}>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[s] ?? 'bg-gray-100 text-gray-600'}`}>
       {STATUS_LABELS[s] ?? s}
     </span>
   )
 }
 
-const PENDING_STATUSES = [null, 'needs_sourcing', 'sourced']
-const COMPLETE_STATUSES = ['sent', 'complete']
+function statusStripeColor(status: FulfillmentStatus): string {
+  const key = status ?? 'needs_sourcing'
+  return STATUS_STRIPE[key] ?? 'bg-gray-300'
+}
+
+const PENDING_STATUSES: (string | null)[] = [null, 'needs_sourcing', 'sourced', 'waiting_for_transfer']
 
 export default function FulfillmentPage({ userName, orders }: Props) {
-  const [tab, setTab] = useState<'pending' | 'complete'>('pending')
+  const [tab, setTab] = useState<'pending' | 'sent' | 'archive'>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [localOrders, setLocalOrders] = useState<Order[]>(orders)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
+  const today = new Date().toISOString().slice(0, 10)
+
+  const isPending = (o: Order) => PENDING_STATUSES.includes(o.statut_expedition)
+  const isSent = (o: Order) => o.statut_expedition === 'sent' && (!o.date_evenement || o.date_evenement >= today)
+  const isArchive = (o: Order) => {
+    const eventPassed = o.date_evenement != null && o.date_evenement < today
+    return (o.statut_expedition === 'sent' && eventPassed) || o.statut_expedition === 'complete'
+  }
+
   const filtered = localOrders.filter(o =>
-    tab === 'pending'
-      ? PENDING_STATUSES.includes(o.statut_expedition)
-      : COMPLETE_STATUSES.includes(o.statut_expedition as string)
+    tab === 'pending' ? isPending(o) :
+    tab === 'sent' ? isSent(o) :
+    isArchive(o)
   )
 
   const toggle = (id: string) => setExpandedId(prev => prev === id ? null : id)
@@ -116,25 +138,25 @@ export default function FulfillmentPage({ userName, orders }: Props) {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
-          {(['pending', 'complete'] as const).map(t => (
+          {([
+            { key: 'pending' as const, label: 'Pending', filter: isPending },
+            { key: 'sent' as const, label: 'Sent', filter: isSent },
+            { key: 'archive' as const, label: 'Archive', filter: isArchive },
+          ]).map(t => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
-                tab === t
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === t.key
                   ? 'bg-[#1a3a2a] text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {t}
+              {t.label}
               <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
-                tab === t ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'
+                tab === t.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'
               }`}>
-                {localOrders.filter(o =>
-                  t === 'pending'
-                    ? PENDING_STATUSES.includes(o.statut_expedition)
-                    : COMPLETE_STATUSES.includes(o.statut_expedition as string)
-                ).length}
+                {localOrders.filter(t.filter).length}
               </span>
             </button>
           ))}
@@ -145,6 +167,7 @@ export default function FulfillmentPage({ userName, orders }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="w-1 p-0" />
                 <th className="w-8 px-4 py-3" />
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Event</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</th>
@@ -157,7 +180,7 @@ export default function FulfillmentPage({ userName, orders }: Props) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No orders in this category.</td>
+                  <td colSpan={8} className="px-6 py-8 text-center text-gray-400">No orders in this category.</td>
                 </tr>
               ) : (
                 filtered.map(order => {
@@ -169,6 +192,9 @@ export default function FulfillmentPage({ userName, orders }: Props) {
                         onClick={() => toggle(order.id)}
                         className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
                       >
+                        <td className="w-1 p-0">
+                          <div className={`w-1 h-full min-h-[48px] ${statusStripeColor(order.statut_expedition)}`} />
+                        </td>
                         <td className="px-4 py-3 text-gray-400">
                           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </td>
@@ -186,6 +212,9 @@ export default function FulfillmentPage({ userName, orders }: Props) {
 
                       {expanded && (
                         <tr key={`${order.id}-expanded`} className="border-b border-gray-100 bg-gray-50">
+                          <td className="w-1 p-0">
+                            <div className={`w-1 h-full min-h-[48px] ${statusStripeColor(order.statut_expedition)}`} />
+                          </td>
                           <td colSpan={7} className="px-8 py-5">
                             <div className="grid grid-cols-3 gap-6 text-sm">
                               {/* Customer details */}

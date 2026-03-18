@@ -81,8 +81,7 @@ export default function EventHeader({
         const map = new Map<string, EventItem>()
         data.forEach(r => {
           const name = r.evenement
-          const parts = r.slug.split('-')
-          const slugEvent = parts[0]
+          const slugEvent = r.slug
           const logo = r.logo_artiste ?? undefined
           const dateIso = r.date
           if (!map.has(name)) {
@@ -161,7 +160,7 @@ export default function EventHeader({
           >
             <ShoppingCart className="w-6 h-6 text-white" />
             {ticketCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-yellow-500 text-black rounded-full text-xs w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-[#1a3a2a] text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
                 {ticketCount}
               </span>
             )}

@@ -211,30 +211,7 @@ export default async function handler(
     const totalPrice = (session.amount_total ?? 0) / 100
     const billetIds = reservationItems.map((item: any) => item.billet_id)
 
-    // Insertion de la commande
-    const { data: cmdData, error: cmdErr } = await supabase
-      .from('commandes')
-      .insert({
-        stripe_session_id: session.id,
-        email: emailClient,
-        nom: session.customer_details?.name || null,
-        billets: billetsInfos,
-        quantite_total: totalQty,
-        prix_total: totalPrice,
-        date_evenement: session.metadata?.date_evenement || null,
-        evenement: billetsInfos[0]?.evenement || null,
-        id_billets: billetIds,
-        date_creation: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
-    if (cmdErr) {
-      console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
-      throw new Error('Failed to insert commande: ' + cmdErr.message)
-    }
-    console.log('🆔 Commande insérée, id =', cmdData?.id)
-
-    // Set owner_id on the commande + fetch sourcing_required from the first billet
+    // Resolve owner_id + sourcing_required from the first billet BEFORE insert
     const firstBilletId = reservationItems[0]?.billet_id
     let ownerId: string | null = null
     let sourcingRequired = false
@@ -248,16 +225,32 @@ export default async function handler(
       sourcingRequired = billetData?.sourcing_required ?? false
     }
 
-    if (ownerId && cmdData?.id) {
-      const update: Record<string, any> = { owner_id: ownerId }
-      if (sourcingRequired) update.statut_expedition = 'needs_sourcing'
-      const { error: ownerErr } = await supabase
-        .from('commandes')
-        .update(update)
-        .eq('id', cmdData.id)
-      if (ownerErr) console.error('❌ Erreur set owner_id/statut commande:', JSON.stringify(ownerErr))
-      else console.log('✅ owner_id set on commande:', ownerId, '| sourcing_required:', sourcingRequired)
+    // Insertion de la commande (owner_id included upfront)
+    const insertPayload: Record<string, any> = {
+      stripe_session_id: session.id,
+      email: emailClient,
+      nom: session.customer_details?.name || null,
+      billets: billetsInfos,
+      quantite_total: totalQty,
+      prix_total: totalPrice,
+      date_evenement: session.metadata?.date_evenement || null,
+      evenement: billetsInfos[0]?.evenement || null,
+      id_billets: billetIds,
+      date_creation: new Date().toISOString(),
+      owner_id: ownerId,
     }
+    if (sourcingRequired) insertPayload.statut_expedition = 'needs_sourcing'
+
+    const { data: cmdData, error: cmdErr } = await supabase
+      .from('commandes')
+      .insert(insertPayload)
+      .select('id')
+      .single()
+    if (cmdErr) {
+      console.error('❌ Erreur insert commande:', JSON.stringify(cmdErr))
+      throw new Error('Failed to insert commande: ' + cmdErr.message)
+    }
+    console.log('🆔 Commande insérée, id =', cmdData?.id, '| owner_id:', ownerId, '| sourcing_required:', sourcingRequired)
 
     // Send owner notification email (sourcing alert or simple sale notification)
     if (ownerId) {
@@ -296,7 +289,7 @@ export default async function handler(
             await resend.emails.send({
               from: 'contact@mail.zenntry.com',
               to: ownerEmail,
-              subject: '🎟 New order — action required',
+              subject: '[Zenntry] 🎟 New order — action required',
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; color: #111; padding: 24px;">
                   <div style="margin-bottom: 20px;">
@@ -316,7 +309,7 @@ export default async function handler(
             await resend.emails.send({
               from: 'contact@mail.zenntry.com',
               to: ownerEmail,
-              subject: `🎟 New sale — ${eventName}`,
+              subject: `[Zenntry] 🎟 New sale — ${eventName}`,
               html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; color: #111; padding: 24px;">
                   <div style="margin-bottom: 20px;">
@@ -359,13 +352,15 @@ export default async function handler(
     }
 
     // Envoi email de confirmation via Resend
-    if (cmdData?.id && emailClient) {
+    if (!emailClient) {
+      console.warn('⚠️ emailClient is null — skipping confirmation email')
+    } else if (cmdData?.id) {
       console.log('📧 Envoi email confirmation à:', emailClient)
       try {
         const result = await resend.emails.send({
           from: 'contact@mail.zenntry.com',
           to: emailClient,
-          subject: 'Confirmation de votre commande – Tixario',
+          subject: '[Zenntry] Confirmation de votre commande',
           html: `
             <div style="font-family: Arial; background-color: #121212; color: #fff; padding: 32px; max-width: 600px; margin: auto; border-radius: 8px;">
               <div style="text-align: center; margin-bottom: 32px;">

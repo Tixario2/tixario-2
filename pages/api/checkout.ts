@@ -15,6 +15,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 interface RequestItem {
   billet_id: string;
   quantity: number;
+  adult_qty?: number;
+  child_qty?: number;
 }
 
 export default async function handler(
@@ -71,7 +73,9 @@ export default async function handler(
       billet_id,
       billets (
         evenement,
-        categorie
+        categorie,
+        prix_adult,
+        prix_child
       )
     `)
     .eq('reservation_id', reservationId);
@@ -81,21 +85,61 @@ export default async function handler(
     return res.status(500).json({ error: 'Failed to fetch reservation items.' });
   }
 
-  const line_items = reservationItems.map((item: any) => {
-    if (!item.billets || typeof item.billets !== 'object' || Array.isArray(item.billets)) {
+  // Build a map of billet_id -> request item for adult/child info
+  const reqMap = new Map<string, RequestItem>();
+  for (const ri of items) {
+    reqMap.set(ri.billet_id, ri);
+  }
+
+  const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+  for (const item of reservationItems) {
+    const billetJoin = item.billets as any;
+    if (!billetJoin || typeof billetJoin !== 'object' || Array.isArray(billetJoin)) {
       throw new Error('Invalid billets join result for billet_id: ' + item.billet_id);
     }
-    return {
-    price_data: {
-      currency: 'eur',
-      product_data: {
-        name: `${item.billets.evenement} – ${item.billets.categorie}`,
-      },
-      unit_amount: Math.round(parseFloat(item.unit_price) * 100),
-    },
-    quantity: item.quantity,
-    };
-  });
+
+    const reqItem = reqMap.get(item.billet_id);
+    const hasMixed = reqItem?.adult_qty != null && reqItem?.child_qty != null &&
+      billetJoin.prix_adult != null && billetJoin.prix_child != null;
+
+    if (hasMixed) {
+      if (reqItem!.adult_qty! > 0) {
+        line_items.push({
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: `${billetJoin.evenement} – ${billetJoin.categorie} (Adulte)`,
+            },
+            unit_amount: Math.round(parseFloat(billetJoin.prix_adult) * 100),
+          },
+          quantity: reqItem!.adult_qty!,
+        });
+      }
+      if (reqItem!.child_qty! > 0) {
+        line_items.push({
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: `${billetJoin.evenement} – ${billetJoin.categorie} (Enfant)`,
+            },
+            unit_amount: Math.round(parseFloat(billetJoin.prix_child) * 100),
+          },
+          quantity: reqItem!.child_qty!,
+        });
+      }
+    } else {
+      line_items.push({
+        price_data: {
+          currency: 'eur',
+          product_data: {
+            name: `${billetJoin.evenement} – ${billetJoin.categorie}`,
+          },
+          unit_amount: Math.round(parseFloat(item.unit_price) * 100),
+        },
+        quantity: item.quantity,
+      });
+    }
+  }
 
   // 4) Create the Stripe Checkout session
   try {
